@@ -1,0 +1,827 @@
+#!/bin/bash
+
+# Create a new directory and enter it
+mkd() {
+	mkdir -p "$@"
+	cd "$@" || exit
+}
+
+# Determine size of a file or total size of a directory
+fs() {
+	if du -b /dev/null > /dev/null 2>&1; then
+		local arg=-sbh;
+	else
+		local arg=-sh;
+	fi
+	if [[ -n "$@" ]]; then
+		du $arg -- "$@";
+	else
+		du $arg .[^.]* ./*;
+	fi;
+}
+
+# Use Git’s colored diff when available
+hash git &>/dev/null;
+if [ $? -eq 0 ]; then
+	function diff() {
+		git diff --no-index --color-words "$@";
+	}
+fi;
+
+# location
+o() {
+	if [ $# -eq 0 ]; then
+		open .;
+	else
+		open "$@";
+	fi;
+}
+
+# Create a git.io short URL
+gitio() {
+	if [ -z "${1}" ] || [ -z "${2}" ]; then
+		echo "Usage: \`gitio slug url\`"
+		return 1
+	fi
+	curl -i https://git.io/ -F "url=${2}" -F "code=${1}"
+}
+
+# -------------------------------------------------------------------
+# shorturl: Create a short URL
+shorturl() {
+  if [ -z "${1}" ]; then
+    echo "Usage: \`shorturl url\`"
+    return 1
+  fi
+
+  curl -s https://www.googleapis.com/urlshortener/v1/url \
+    -H 'Content-Type: application/json' \
+    -d '{"longUrl": '\"$1\"'}' | grep id | cut -d '"' -f 4
+}
+
+# Use feh to nicely view images
+openimage() {
+	local types='*.jpg *.JPG *.png *.PNG *.gif *.GIF *.jpeg *.JPEG'
+
+	cd "$(dirname "$1")" || exit
+	local file
+	file=$(basename "$1")
+
+	feh -q "$types" --auto-zoom \
+		--sort filename --borderless \
+		--scale-down --draw-filename \
+		--image-bg black \
+		--start-at "$file"
+}
+
+# Get colors in manual pages
+man() {
+	env \
+		LESS_TERMCAP_mb="$(printf '\e[1;31m')" \
+		LESS_TERMCAP_md="$(printf '\e[1;31m')" \
+		LESS_TERMCAP_me="$(printf '\e[0m')" \
+		LESS_TERMCAP_se="$(printf '\e[0m')" \
+		LESS_TERMCAP_so="$(printf '\e[1;44;33m')" \
+		LESS_TERMCAP_ue="$(printf '\e[0m')" \
+		LESS_TERMCAP_us="$(printf '\e[1;32m')" \
+		man "$@"
+}
+
+ABRAHAM_CDN=https://cdn.abranhe.com
+
+# Check if a URL is up
+isup() {
+	local uri=$1
+
+	if curl -s --head  --request GET "$uri" | grep "200 OK" > /dev/null ; then
+		notify \
+      -title '❌' -message "$uri is down" \
+			-sound Glass -open "$uri" \
+			-appIcon ${ABRAHAM_CDN}/notifier/internet.png
+	else
+		notify \
+			-title '✅'  -message "$uri is up" \
+			-sound Basso -open "$uri" \
+			-appIcon ${ABRAHAM_CDN}/notifier/internet.png
+	fi
+}
+
+# Check if an NPM package exist
+check-npm() {
+	local pkg_name=$1
+	local link=${NPM_URL}package/${pkg_name}
+
+	if curl -s --head  --request GET ${link} | grep "404" > /dev/null ; then
+		notify \
+			-title '✅ The package is available' \
+			-message "The package '$pkg_name' can be yours" \
+			-open ${link} -sound Glass \
+			-appIcon ${ABRAHAM_CDN}/notifier/npm.png
+	else
+    notify \
+		  -title '❌ The package is not available' \
+			-message "The package '$pkg_name' is taken" \
+			-open ${link} -sound Basso \
+			-appIcon ${ABRAHAM_CDN}/notifier/npm.png
+	fi
+}
+
+# Check if a Pypip package exist
+check-pip() {
+	local pkg_name=$1
+	local link=${PYPI_URL}project/${pkg_name}/
+
+	if curl -s --head  --request GET ${link} | grep "404" > /dev/null ; then
+		notify \
+			-title '✅ The package is available' \
+			-message "The package '$pkg_name' can be yours" \
+			-open ${link} -sound Glass \
+			-appIcon ${ABRAHAM_CDN}/notifier/pypi.png
+	else
+		notify \
+			-title '❌ The package is not available' \
+			-message "The package '$pkg_name' is taken" \
+			-open ${link} -sound Basso \
+			-appIcon ${ABRAHAM_CDN}/notifier/pypi.png
+	fi
+}
+
+
+# box: a function to create a box of '=' characters around a given string
+#
+# usage: box 'testing'
+box() {
+  local t="$1xxxx"
+  local c=${2:-"🔥"}
+
+  echo ${t//?/$c}
+  echo "$c $1 $c"
+  echo ${t//?/$c}
+}
+
+# -------------------------------------------------------------------
+# test-connection: check if connection to google.com is possible
+# Ohter way: https://github.com/voku/dotfiles/blob/master/.functions#L390
+connection() {
+  local tmpReturn=1
+  
+  if curl -s --head  --request GET www.google.com | grep "200 OK" > /dev/null ; then
+  	tmpReturn=1
+  else
+    tmpReturn=0
+  fi
+
+  if [ $tmpReturn -eq 0 ] ; then
+    # Internet not working
+		notify \
+			-title '😭 BAD NEWS' \
+			-message 'Internet is not present' \
+			-sound default # Not Icon since it has not internet it wont load
+		return $tmpReturn
+	else
+    # Internet present
+		notify \
+      -title '😄 GOOD NEWS' \
+      -message 'Internet present' -sound default \
+			-appIcon ${ABRAHAM_CDN}/notifier/internet.png
+		return $tmpReturn
+	fi
+}
+
+# -------------------------------------------------------------------
+# extract: extract of compressed-files
+extract() {
+  if [[ $# -eq 0 ]] ; then
+    echo
+    echo "Usage:"
+    echo "  $ extract [file.{zip,gz,rar,tar,bz2,etc}]"
+    echo
+    return 0;
+  fi
+
+  if [ -f $1 ] ; then
+    case $1 in
+      *.tar.bz2)   tar xvjf $1     ;;
+      *.tar.gz)    tar xvzf $1     ;;
+      *.bz2)       bunzip2 $1      ;;
+      *.rar)       unrar e $1      ;;
+      *.gz)        gunzip $1       ;;
+      *.tar)       tar xvf $1      ;;
+      *.tbz2)      tar xvjf $1     ;;
+      *.tgz)       tar xvzf $1     ;;
+      *.lha)       lha e $1        ;;
+      *.zip)       unzip $1        ;;
+      *.Z)         uncompress $1   ;;
+      *.7z)        7z x $1         ;;
+      *)           echo "'$1' cannot be extracted via >extract<"
+                   return 1        ;;
+    esac
+
+  else
+    echo "'$1' is not a valid file"
+  fi
+}
+
+# -------------------------------------------------------------------
+# os-info: show some info about your system
+os-info() {
+  uname -a
+
+  if [ -z /etc/lsb-release ]; then
+    cat /etc/lsb-release;
+  fi;
+
+  if [ -z /etc/issue ]; then
+    cat /etc/issue;
+  fi;
+
+  if [ -z /proc/version ]; then
+    cat /proc/version;
+  fi;
+}
+
+# -------------------------------------------------------------------
+# print_all_colors: show all printable colors in the shell
+print_all_colors() {
+  # credit to http://askubuntu.com/a/279014
+  for x in 0 1 4 5 7 8; do
+    for i in `seq 30 37`; do
+      for a in `seq 40 47`; do
+        echo -ne "\e[$x;$i;$a""m\\\e[$x;$i;$a""m\e[0;37;40m "
+      done
+      echo ""
+    done
+  done
+  echo ""
+}
+
+# whois a domain or a URL
+whois() {
+	local domain=$(echo "$1" | awk -F/ '{print $3}') # get domain from URL
+	if [ -z $domain ] ; then
+		domain=$1
+	fi
+	echo "Getting whois record for: $domain …"
+
+	# avoid recursion
+					# this is the best whois server
+													# strip extra fluff
+	/usr/bin/whois -h whois.internic.net $domain | sed '/NOTICE:/q'
+}
+
+# Start an HTTP server from a directory, optionally specifying the port
+server() {
+	local port=""
+	
+	if [ "$#" -eq  "0" ] ; then
+		port="8000"
+ 	else
+		port=$1
+ 	fi
+
+	open http://localhost:$port &
+	# yarn global add http-server
+ 	http-server -p $port .
+}
+
+# Edit files easier | Open VSCode
+edit() (
+  help() {
+	echo
+    echo "Usage:"
+	echo "  $ edit [options|<flags>]"
+    echo
+    echo "Options:"
+    echo "  a   aliases             Edit aliases (.aliases)"
+    echo "  df  dockerfunctions     Edit docker functions (.dockerfunc)"
+    echo "  e   exports             Edit exports (.exports)"
+    echo "  f   functions           Edit functions (.functions)"
+    echo "  h   hyper               Edit hyper config (.hyper.js)"
+    echo "  p   path                Edit path files (.path)"
+    echo "  v   vim                 Edit vim files (.vimrc)"
+    echo "  z   zsh                 Edit oh-my-zhell file config (.zshrc)"
+	echo
+	echo "Flags:"
+	echo "  -h   --help              Display help information"
+	echo "  -v   --version           Display version (Last time edited the edit() function)"
+    echo
+  }
+  
+  if [[ $# -eq 0 ]] ; then
+    echo
+    echo "Usage:"
+	echo "  $ edit --help"
+	echo
+    exit 0
+  fi
+
+  case $1 in
+    f|functions)
+      code ~/.functions
+    ;;
+	df|dockerfunctions)
+      code ~/.dockerfunc
+    ;;
+	a|aliases)
+      code ~/.aliases
+    ;;
+	z|zsh)
+      code ~/.zshrc
+    ;;
+	v|vim)
+      code ~/.vimrc
+    ;;
+	p|path)
+      code ~/.path
+    ;;
+  e|exports)
+      code ~/.exports
+    ;;
+	h|hyper)
+      code ~/.hyper.js
+    ;;
+    --help|-h|help)
+      help
+    ;;
+	--version|-v|version)
+      echo "2019.1.28"
+    ;;
+    *)
+      echo "Unsupported command '"$1"'" 
+    ;;
+	esac
+)
+
+# Get macOS Info
+mac-info() {
+    sw_vers
+}
+
+
+# Lock Mac
+lock() {
+	if [ $# -eq 1 ]; then
+		echo "Usage:\n"
+		echo " $ lock"
+		return 1
+	fi
+	
+	if [[ $# -eq 0 ]] ; then
+      /System/Library/CoreServices/Menu\ Extras/User.menu/Contents/Resources/CGSession -suspend
+  	fi
+}
+    
+
+# Stuff for Wifi
+wifi() (
+  help() {
+	echo
+    echo "Usage:"
+	echo "  $ wifi [options]"
+    echo
+    echo "Options:"
+    echo "  ${RED}d | off  disable${NC}             Disable Wifi"
+    echo "  ${GREEN}e | on   enable${NC}              Enable Wifi"
+    echo "  p        password            Show current network passowrd"
+    echo "  s        status              Check wifi status"
+    echo "  sc       scan                Check available wifi networks"
+	echo
+	echo "Flags:"
+	echo "  -h   --help                  Display help information"
+    echo
+  }
+  
+  if [[ $# -eq 0 ]] ; then
+    echo
+    echo "Usage:"
+    echo "  $ wifi --help"
+    echo
+    exit 0
+  fi
+
+  case $1 in
+    # Check wifi status
+    s|status)
+        /System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport -I
+    ;;
+
+    # Check available wifi networks
+    sc|scan)
+        /System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport -s
+    ;;
+
+    # Enable wifi
+    e|enable|on)
+        echo "${GREEN}Wifi enabled${NC}"
+        networksetup -setairportpower ${_W_DEVICE} on
+    ;;
+
+    # Disable wifi
+    d|disable|off)
+        echo "${GREEN}Wifi disabled${NC}"
+        networksetup -setairportpower ${_W_DEVICE} off
+    ;;
+
+    # Show wifi password for current network
+    p|password)
+        if [ -z "$2" ]
+            then
+                ssid="`/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport -I | awk '/ SSID/ {print substr($0, index($0, $2))}'`"
+            else
+                ssid=$2
+        fi
+        security find-generic-password -D "AirPort network password" -a "$ssid" -gw
+    ;;
+	-h|--help|h|help)
+	  help
+	;;
+    *)
+      echo "Unsupported command '"$1"'" 
+    ;;
+	esac
+)
+
+# School productivity
+school() (
+  help() {
+	echo
+    echo "Usage:"
+	  echo "  $ school [options]"
+    echo
+    echo "Options:"
+    echo "  b    blackboard           Open Blackboard"
+    echo "  bb | bio-beyond           Open Bio Beyond"
+    echo "  e    email                Open school email"
+    echo "  m    mathlab              Open MymathLab"
+    echo "  mc   mdc-connect          Open MDC Connect"
+    echo
+    echo "Flags:"
+    echo "  -h   --help               Display help information"
+    echo
+  }
+  
+  if [[ $# -eq 0 ]] ; then
+    echo
+    echo "Usage:"
+	echo "  $ school --help"
+	echo
+    exit 0
+  fi
+
+  case $1 in
+    b|blackboard)
+      open ${BLACKBOARD}
+    ;;
+    mathlab|m)
+      open ${MY_MATH_LAB}
+    ;;
+    email|e)
+      open ${SCHOOL_EMAIL}
+    ;;
+    bb|bio|bio-beyond)
+      open ${BIO_BEYOND}
+    ;;
+    mdc-connect|mc)
+      open ${MDC_CONNECT}
+    ;;
+	-h|--help)
+	  help
+	;;
+    *)
+      echo "Unsupported command '"$1"'" 
+    ;;
+	esac
+)
+
+# Stuff
+stuff() (
+  help() {
+	echo
+    echo "Usage:"
+	  echo "  $ stuff [options]"
+    echo
+    echo "Options:"
+    echo "  e | email                 Open personal email"
+    echo
+    echo "Flags:"
+    echo "  -h   --help               Display help information"
+    echo
+  }
+  
+  if [[ $# -eq 0 ]] ; then
+    echo
+    echo "Usage:"
+	echo "  $ stuff --help"
+	echo
+    exit 0
+  fi
+
+  case $1 in
+    e|email)
+      open ${MAIL}
+    ;;
+	-h|--help)
+	  help
+	;;
+    *)
+      echo "Unsupported command '"$1"'" 
+    ;;
+	esac
+)
+
+# Github Quick Links
+gh() (
+  help() {
+	echo
+    echo "Usage:"
+	  echo "  $ gh [options]"
+    echo
+    echo "Options:"   
+    echo "  g    gists                Open Github gists"
+    echo "  i    issues               Open Github issues"
+    echo "  n    notifications        Open Github notifications"
+    echo "  o    open [repo]          Open repository on Github"
+    echo "  p    profile              Open Github profile"
+    echo "  pr   pulls                Open pulls requests"
+    echo "  r    repos                Open repositories"
+    echo "  s    search               Search on Github"
+    echo "       settings             Open Github Settings"
+    echo "       stars                Open starred repositories"
+    echo "  u    user                 Search on user on Github"
+    echo
+    echo "Flags:"
+    echo "  -h   --help               Display help information"
+    echo
+  }
+  
+  if [[ $# -eq 0 ]] ; then
+    echo
+    echo "Usage:"
+    echo "  $ gh --help"
+    echo
+    exit 0
+  fi
+
+  case $1 in
+    g|gists)
+      open ${GITHUB_GISTS}
+    ;;
+    i|issues)
+      open ${GITHUB_ISSUES}
+    ;;
+    n|notifications)
+      open ${GITHUB_NOTIFICATIONS}
+    ;;
+    o|open)
+      if [[ $# -eq 1 ]] ; then
+        echo
+        echo "Usage:"
+        echo "  $ gh open [repository name]"
+        echo
+        exit 0
+      fi
+      open ${GITHUB_PROFILE}/$2
+    ;;
+    p|profile)
+      open ${GITHUB_PROFILE}
+    ;;
+    pr|pulls)
+      open ${GITHUB_PR}
+    ;;
+    pr|pulls)
+      open ${GITHUB_PR}
+    ;;
+    r|repos)
+      open ${GITHUB_REPOS}
+    ;;
+    s|search)
+      if [[ $# -eq 1 ]] ; then
+        echo
+        echo "Usage:"
+        echo "  $ gh search [query]"
+        echo
+        exit 0
+      fi
+      open ${GITHUB_SEARCH}$2
+    ;;
+    settings)
+      open ${GITHUB_SETTINGS}
+    ;;
+    stars)
+      open ${GITHUB_STARS}
+    ;;
+    u|user)
+      if [[ $# -eq 1 ]] ; then
+        echo
+        echo "Usage:"
+        echo "  $ gh user [query]"
+        echo
+        exit 0
+      fi
+      open ${GITHUB}/$2
+    ;;
+	-h|--help)
+	  help
+	;;
+    *)
+      echo "Unsupported command '"$1"'" 
+    ;;
+	esac
+)
+
+# Translate stuff
+translate() {
+  if [ -z "${1}" ]; then
+		echo "\nUsage:\n  $ translate [query]\n"
+		return 1
+	fi
+  open ${TRANSLATE}$1
+}
+
+# Search stuff
+search() (
+  help() {
+	  echo
+    echo "Usage:"
+	  echo "  $ search [ query | <flags> | website [query] ]"
+    echo
+    echo "Website:"   
+    echo "  a    ask            Search on Ask.com"
+    echo "  b    bing           Search on Bing.com"
+    echo "  d    duck           Search on DuckDuckGo.com"
+    echo "  g    google         Search on Google.com"
+    echo "  gh   github         Search on Github.com"
+    echo "  i    info           Search on Info.com"
+    echo "  p    ph             Search on P***hub.com"
+    echo "  y    yahoo          Search on Yahoo.com"
+    echo "  yt   youtube        Search on Youtube.com"
+    echo
+    echo "Examples:"
+    echo "  $ search google Github"
+    echo
+    echo "Flags:"
+    echo "  -h   --help               Display help information"
+    echo
+  }
+  
+  if [[ $# -eq 0 ]] ; then
+    echo
+    echo "Usage:"
+    echo "  $ search --help"
+    echo
+    exit 0
+  fi
+
+  case $1 in
+    a|ask)
+      open ${ASK}$2
+    ;;
+    b|bing)
+      open ${BING}$2
+    ;;
+    d|duck)
+      open ${DUCKDUCKGO}$2
+    ;;
+    g|google)
+      open ${GOOGLE}$2 
+    ;;
+    gh|github)
+      gh search $2
+    ;;
+    i|info)
+      open ${INFO}$2
+    ;;
+    p|ph)
+      open \
+       -na ${DEFAULT_BROWSER} \
+       --args -incognito ${PHUB}$2
+    ;;
+    y|yahoo)
+      open ${YAHOO}$2
+    ;;
+    yt|youtube)
+      open ${YOUTUBE}$2
+    ;;
+	-h|--help)
+	  help
+	;;
+    *)
+      open ${DEFAULT_SE}$1
+    ;;
+	esac
+)
+
+# Adding an speed test
+speedtest() {
+  	case $1 in
+	  f|fast)
+	    npx fast-cli
+	  ;;
+	  st|speedtest)
+	    npx speed-test
+	  ;;
+	  *)
+	  	echo "Usage: $(basename "$0") [ <f|fast> || <st|speedtest> ]"
+	  ;;
+	  esac
+}
+
+# List of used ports
+ports() {
+	case $1 in
+	  -h|--help|help)
+	  	echo "Usage: $(basename "$0")"
+		return 1
+	  ;;
+    esac
+    sudo lsof -iTCP -sTCP:LISTEN -P
+}
+
+# Information of my commands
+cmds() {
+
+  # Colors Identifier  
+  local f=${COLOR_BHI_BLACK}          # Folders                       
+  local a=${COLOR_BHI_RED}            # App
+  local n=${COLOR_BHI_GREEN}          # Network
+  local u=${COLOR_BHI_YELLOW}         # Utilities
+  local g=${COLOR_BHI_BLUE}           # Git
+  local h=${COLOR_BHI_PURPLE}         # Fun
+  local p=${COLOR_BHI_CYAN}           # Personal
+  #local =${COLOR_BHI_WHITE}
+  local nc=${NC}
+
+  echo
+	echo "
+  ${COLOR_B_CYAN}COMMANDS:${nc}
+
+    ${f}■ Folders | Navegation${nc}
+    ${a}■ Apps${nc}
+    ${u}■ Utilities${nc}
+    ${n}■ Network${nc}
+    ${g}■ Git${nc}
+    ${h}■ Fun${nc}
+    ${p}■ Personal${nc}
+    
+    ${f}■${nc} abranhe            Go to ~/github/abranhe folder
+    ${a}■${nc} activity           Open Activity Monitor
+    ${n}■${nc} all-colors         Print all colors
+    ${h}■${nc} battery            Indicator for your battery-time
+    ${h}■${nc} box                create a box around a given string
+    ${f}■${nc} cdn                Go to ~/github/abranhe/cdn folder
+    ${u}■${nc} check-npm          Check if a package is available on NPM
+    ${u}■${nc} check-pip          Check if a package is available on Pypi
+    ${a}■${nc} chrome             Open Chrome
+    ${u}■${nc} chromekill         Kill Chrome Tabs
+    ${u}■${nc} cleanup            Remove DS_Store files
+    ${n}■${nc} cp                 Copy file
+    ${n}■${nc} connection         Check if there is Internet
+    ${u}■${nc} cwd                Copy current working directory
+    ${a}■${nc} d                  Run Docker command
+    ${a}■${nc} d-c                Run Docker compose command
+    ${f}■${nc} desktop            Go to ~/Desktop folder
+    ${u}■${nc} docker-clean       Clean All Images and Containers
+    ${f}■${nc} downloads          Go to ~/Downloads folder
+    ${u}■${nc} edit               Edit files easier
+    ${u}■${nc} emptytrash         Empty .Trash
+    ${u}■${nc} extract            Extract compressed files
+    ${u}■${nc} fs                 Determine size of a file or total size of a directory
+    ${g}■${nc} gac                Git add all and commit
+    ${g}■${nc} ge                 Git Extras 
+    ${g}■${nc} gh                 Github commands
+    ${f}■${nc} github             Go to ~/github folder
+    ${g}■${nc} gitio              Create a git.io short url
+    ${g}■${nc} gp                 Git Pull
+    ${u}■${nc} hide               Hide hidden files [cmd + .]
+    ${u}■${nc} hosts              Vhosts
+    ${a}■${nc} imovie             Open iMovie
+    ${a}■${nc} ios                Open iOS simulator
+    ${n}■${nc} isup <url>         Check if a URL is up
+    ${n}■${nc} localip            Display local IP address
+    ${f}■${nc} mv                 Move file
+    ${a}■${nc} notify             Send a notification from the terminal
+    ${u}■${nc} np                 Publish to npm
+    ${f}■${nc} o                  Open (run without argumets open current directory)
+    ${u}■${nc} os-info            Check information about your system
+    ${g}■${nc} op                 Open repository online
+    ${g}■${nc} or <repo>          Open repository online
+    ${u}■${nc} onpm               Open package on npm
+    ${u}■${nc} path               Print each PATH entry on a separate line
+    ${n}■${nc} ports              List of used ports
+    ${n}■${nc} pubip              Display public IP address
+    ${p}■${nc} school|s           Access school stuff
+    ${u}■${nc} search             Search stuff
+    ${u}■${nc} server             Create an http server on current directory
+    ${u}■${nc} shorturl           Shortern url from Google
+    ${u}■${nc} show               Show hidden files [cmd + .]
+    ${a}■${nc} sketch             Open sketch
+    ${u}■${nc} speedtest|st       Check Internet Speed
+    ${u}■${nc} translate          Translate from English to Spanish
+    ${f}■${nc} tryhtml-cdn        Go to ~/github/tryhtml/cdn folder
+    ${n}■${nc} wifi               Some wifi tricks
+    ${n}■${nc} whois              Check WHOIS, a domain or url    
+    
+    
+  "
+  echo
+}
