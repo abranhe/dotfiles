@@ -6,6 +6,15 @@ mkd() {
 	cd "$@" || exit
 }
 
+# react-native
+rn-clean() {
+  watchman watch-del-all
+  rm -rf $TMPDIR/react-*
+  rm -rf $TMPDIR/haste-*
+  rm -rf $TMPDIR/metro-*
+  npm start -- --reset-cache
+}
+
 # Determine size of a file or total size of a directory
 fs() {
 	if du -b /dev/null > /dev/null 2>&1; then
@@ -529,6 +538,50 @@ stuff() (
 	esac
 )
 
+# Goto
+
+goto() (
+  help() {
+	echo
+    echo "Usage:"
+	  echo "  $ goto [options]"
+    echo
+    echo "Options:"   
+    echo "  b    bitbucket         Navigate to ~/bitbucket/"
+    echo "  g    github            Navigate to ~/github"
+    echo "  se   smarteat          Navigate to ~/bitbucket/smarteat/"
+    echo
+    echo "Flags:"
+    echo "  -h   --help               Display help information"
+    echo
+  }
+  if [[ $# -eq 0 ]] ; then
+    echo
+    echo "Usage:"
+    echo "  $ goto --help"
+    echo
+    exit 0
+  fi
+
+  case $1 in
+    b|bitbucket)
+      echo "NOT WORKING"
+    ;;
+    g|github)
+      echo "NOT WORKING"
+    ;;
+    se|smarteat)
+      echo "NOT WORKING"
+    ;;
+	  -h|--help)
+	  help
+	;;
+    *)
+      echo "Unsupported command '"$1"'" 
+    ;;
+	esac
+)
+
 # Github Quick Links
 gh() (
   help() {
@@ -795,7 +848,6 @@ cmds() {
     ${u}■${nc} hide               Hide hidden files [cmd + .]
     ${u}■${nc} hosts              Vhosts
     ${a}■${nc} imovie             Open iMovie
-    ${a}■${nc} ios                Open iOS simulator
     ${n}■${nc} isup <url>         Check if a URL is up
     ${n}■${nc} localip            Display local IP address
     ${f}■${nc} mv                 Move file
@@ -814,12 +866,14 @@ cmds() {
     ${u}■${nc} server             Create an http server on current directory
     ${u}■${nc} shorturl           Shortern url from Google
     ${u}■${nc} show               Show hidden files [cmd + .]
+    ${a}■${nc} simulator          Open iOS simulator
     ${a}■${nc} sketch             Open sketch
     ${u}■${nc} speedtest|st       Check Internet Speed
     ${u}■${nc} translate          Translate from English to Spanish
     ${f}■${nc} tryhtml-cdn        Go to ~/github/tryhtml/cdn folder
     ${n}■${nc} wifi               Some wifi tricks
-    ${n}■${nc} whois              Check WHOIS, a domain or url    
+    ${n}■${nc} whois              Check WHOIS, a domain or url
+    ${u}■${nc} rn-clean           Clean react native
     
     
   "

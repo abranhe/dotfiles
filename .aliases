@@ -41,6 +41,7 @@ alias desktop="cd ~/Desktop"
 alias h="history"
 alias github="cd ~/github"
 alias bitbucket="cd ~/bitbucket"
+alias smarteat="cd ~/bitbucket/smarteat"
 alias abranhe="cd ~/github/abranhe"
 alias cdn="cd ~/github/abranhe/cdn"
 alias tryhtml-cdn="cd ~/github/tryhtml/cdn"
@@ -54,7 +55,7 @@ alias gac='git add -A && git commit -m'
 alias gc='git clone'
 
 # Open simulator
-alias ios="open /Applications/Xcode.app/Contents/Developer/Applications/Simulator.app"
+alias simulator="open /Applications/Xcode.app/Contents/Developer/Applications/Simulator.app"
 
 # Chrome
 alias chrome='/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome'

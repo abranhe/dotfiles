@@ -7,6 +7,7 @@ export STACKOVERFLOW_ID=7602110
 export DEFAULT_SE=${DUCKDUCKGO}        # Default Search Engine
 export DEFAULT_BROWSER='Google Chrome'
 export MAIL=https://mail.abranhe.com
+export EMAIL=abraham@abranhe.com
 
 #################################################### WIFI variables
 _W_DEVICE=${_W_DEVICE:-en0}
@@ -63,7 +64,6 @@ export INFO_COM=http://www.info.com/serp?q=
 export TRANSLATE=https://translate.google.com/\#view=home\&op=translate\&sl=en\&tl=es\&text=
 export YOUTUBE=https://www.youtube.com/results?search_query=
 export PHUB=https://www.pornhub.com/video/search?search=
-
 #################################################### COLORS
 export GREEN='\033[0;32m'
 export RED='\033[1;31m'
