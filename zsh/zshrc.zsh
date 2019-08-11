@@ -1,5 +1,5 @@
 # Path to your oh-my-zsh installation.
-export ZSH="/Users/abranhe/.oh-my-zsh"
+export ZSH="~/.oh-my-zsh"
 
 #HERE
 ZSH_THEME="robbyrussell"
