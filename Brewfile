@@ -9,6 +9,7 @@ tap 'caskroom/cask'
 tap 'homebrew/services'
 tap 'dorukgezici/cask'
 tap 'AdoptOpenJDK/openjdk'
+tap 'prisma/prisma'
 
 # Some usefull packages
 brew 'git'
@@ -16,6 +17,7 @@ brew 'hub'
 brew 'node'
 brew 'wget'
 brew 'mysql'
+brew 'prisma'
 brew 'watchman'
 brew 'utf8proc'
 brew 'shellcheck'
@@ -35,6 +37,7 @@ cask 'google-chrome'
 
 # Tools
 cask 'iterm2'
+cask 'docker'
 cask 'postman'
 cask 'macdown'
 cask 'datagrip'
@@ -52,7 +55,6 @@ cask 'sketch'
 # Message
 cask 'slack'
 cask 'zoomus'
-# cask 'skype'
 
 # Entretainment
 cask 'popcorn-time'
