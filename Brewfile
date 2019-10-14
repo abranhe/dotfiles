@@ -48,6 +48,7 @@ cask 'adoptopenjdk8'
 cask 'intellij-idea'
 cask 'android-studio'
 cask 'visual-studio-code'
+cask 'graphql-playground'
 
 # Design
 cask 'sketch'
