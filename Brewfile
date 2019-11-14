@@ -59,3 +59,4 @@ cask 'zoomus'
 
 # Entretainment
 cask 'popcorn-time'
+cask 'spotify'
