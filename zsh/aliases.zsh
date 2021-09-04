@@ -153,3 +153,6 @@ alias or='open-repo'
 alias ge='git-extras'
 alias s='search'
 alias open-repo='gh open'
+
+# https://apple.stackexchange.com/a/15322/258558
+alias copy="pbcopy"
