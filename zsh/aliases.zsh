@@ -66,7 +66,7 @@ alias week='date +%V'
 alias timer='echo "Timer started. Stop with Ctrl-D." && date && time cat && date'
 
 # IP addresses
-alias pubip="dig +short myip.opendns.com @resolver3.opendns.com" # See https://go.abranhe.com/find-ip
+alias ip="dig +short myip.opendns.com @resolver3.opendns.com" # See https://go.abranhe.com/find-ip
 alias localip="sudo ifconfig | grep -Eo 'inet (addr:)?([0-9]*\\.){3}[0-9]*' | grep -Eo '([0-9]*\\.){3}[0-9]*' | grep -v '127.0.0.1'"
 
 # vhosts
