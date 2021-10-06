@@ -156,3 +156,5 @@ alias open-repo='gh open'
 
 # https://apple.stackexchange.com/a/15322/258558
 alias copy="pbcopy"
+
+alias fiu="ssh -t chern433@fiu \"source ~/.bashrc; bash -l\""
