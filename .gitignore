@@ -1,17 +1,4 @@
-# Common extensions
-*.swp
-.svn
-
-# Vim plugins
-vim/.*
-vim/plugged
-vim/swaps
-vim/backups
-vim/undo
-
-# Private
-bin/.private
-
-# VS Code
-.vscode/
-.vscode/*
+*~
+.DS_Store
+*.WIP.*
+*.BAK.*

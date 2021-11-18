@@ -1,0 +1,269 @@
+#!/bin/bash
+
+# Create a new directory and enter it
+mkd() {
+  mkdir -p "$@"
+  cd "$@" || exit
+}
+
+# Get colors in manual pages
+man() {
+  env \
+    LESS_TERMCAP_mb="$(printf '\e[1;31m')" \
+    LESS_TERMCAP_md="$(printf '\e[1;31m')" \
+    LESS_TERMCAP_me="$(printf '\e[0m')" \
+    LESS_TERMCAP_se="$(printf '\e[0m')" \
+    LESS_TERMCAP_so="$(printf '\e[1;44;33m')" \
+    LESS_TERMCAP_ue="$(printf '\e[0m')" \
+    LESS_TERMCAP_us="$(printf '\e[1;32m')" \
+    man "$@"
+}
+
+# Create a git.io short URL
+gitio() {
+  if [ -z "${1}" ] || [ -z "${2}" ]; then
+    echo "Usage: gitio <slug> <url>"
+    return 1
+  fi
+  curl -i https://git.io/ -F "url=${2}" -F "code=${1}"
+}
+
+# Create a short URL.
+shorturl() {
+  if [ -z "${1}" ]; then
+    echo "Usage: shorturl <slug> <url>"
+    return 1
+  fi
+
+  curl -s https://api.abranhe.com/shorturl -d "slug=${1}" -d "url=${2}"
+}
+
+# extract: extract of compressed-files
+extract() {
+  if [[ $# -eq 0 ]]; then
+    echo
+    echo "Usage:"
+    echo "  $ extract [file.{zip,gz,rar,tar,bz2,etc}]"
+    echo
+    return 0
+  fi
+
+  if [ -f $1 ]; then
+    case $1 in
+    *.tar.bz2) tar xvjf $1 ;;
+    *.tar.gz) tar xvzf $1 ;;
+    *.bz2) bunzip2 $1 ;;
+    *.rar) unrar e $1 ;;
+    *.gz) gunzip $1 ;;
+    *.tar) tar xvf $1 ;;
+    *.tbz2) tar xvjf $1 ;;
+    *.tgz) tar xvzf $1 ;;
+    *.lha) lha e $1 ;;
+    *.zip) unzip $1 ;;
+    *.Z) uncompress $1 ;;
+    *.7z) 7z x $1 ;;
+    *)
+      echo "'$1' cannot be extracted via >extract<"
+      return 1
+      ;;
+    esac
+
+  else
+    echo "'$1' is not a valid file"
+  fi
+}
+
+# Get macOS Info
+mac-info() {
+  sw_vers
+}
+
+# os-info: show some info about your system
+os-info() {
+  uname -a
+
+  if [ -z /etc/lsb-release ]; then
+    cat /etc/lsb-release
+  fi
+
+  if [ -z /etc/issue ]; then
+    cat /etc/issue
+  fi
+
+  if [ -z /proc/version ]; then
+    cat /proc/version
+  fi
+}
+
+# Lock Mac
+lock() {
+  if [ $# -eq 1 ]; then
+    echo "Usage:\n"
+    echo " $ lock"
+    return 1
+  fi
+
+  if [[ $# -eq 0 ]]; then
+    /System/Library/CoreServices/Menu\ Extras/User.menu/Contents/Resources/CGSession -suspend
+  fi
+}
+
+# print_all_colors: show all printable colors in the shell
+print_all_colors() {
+  # credit to http://askubuntu.com/a/279014
+  for x in 0 1 4 5 7 8; do
+    for i in $(seq 30 37); do
+      for a in $(seq 40 47); do
+        echo -ne "\e[$x;$i;$a""m\\\e[$x;$i;$a""m\e[0;37;40m "
+      done
+      echo ""
+    done
+  done
+  echo ""
+}
+
+# whois a domain or a URL
+whois() {
+  local domain=$(echo "$1" | awk -F/ '{print $3}') # get domain from URL
+  if [ -z $domain ]; then
+    domain=$1
+  fi
+  echo "Getting whois record for: $domain …"
+
+  # avoid recursion
+  # this is the best whois server
+  # strip extra fluff
+  /usr/bin/whois -h whois.internic.net $domain | sed '/NOTICE:/q'
+}
+
+# Determine size of a file or total size of a directory
+fs() {
+  if du -b /dev/null >/dev/null 2>&1; then
+    local arg=-sbh
+  else
+    local arg=-sh
+  fi
+  # shellcheck disable=SC2199
+  if [[ -n "$@" ]]; then
+    du $arg -- "$@"
+  else
+    du $arg -- .[^.]* *
+  fi
+}
+
+# Create a data URL from a file
+dataurl() {
+  local mimeType
+  mimeType=$(file -b --mime-type "$1")
+  if [[ $mimeType == text/* ]]; then
+    mimeType="${mimeType};charset=utf-8"
+  fi
+  echo "data:${mimeType};base64,$(openssl base64 -in "$1" | tr -d '\n')"
+}
+
+# Start an HTTP server from a directory, optionally specifying the port
+server() {
+  local port="${1:-8000}"
+  echo "Listening on port $port -> http://localhost:$port"
+  sleep 1 && open "http://localhost:${port}" &
+  python3 -m http.server "$port"
+}
+
+# Stuff for Wifi
+wifi() (
+  if [[ $# -eq 0 ]]; then
+    echo
+    echo "Usage:"
+    echo "  $ wifi --help"
+    echo
+    exit 0
+  fi
+
+  case $1 in
+  # Check wifi status
+  s | status)
+    /System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport -I
+    ;;
+
+  # Check available wifi networks
+  sc | scan)
+    /System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport -s
+    ;;
+
+  # Enable wifi
+  e | enable | on)
+    echo "${GREEN}Wifi enabled${NC}"
+    networksetup -setairportpower ${_W_DEVICE} on
+    ;;
+
+  # Disable wifi
+  d | disable | off)
+    echo "${GREEN}Wifi disabled${NC}"
+    networksetup -setairportpower ${_W_DEVICE} off
+    ;;
+
+  # Show wifi password for current network
+  p | password)
+    if [ -z "$2" ]; then
+      ssid="$(/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport -I | awk '/ SSID/ {print substr($0, index($0, $2))}')"
+    else
+      ssid=$2
+    fi
+    security find-generic-password -D "AirPort network password" -a "$ssid" -gw
+    ;;
+  -h | --help | h | help)
+    echo
+    echo "Usage:"
+    echo "  $ wifi [options]"
+    echo
+    echo "Options:"
+    echo "  d | off  disable             Disable Wifi"
+    echo "  e | on   enable              Enable Wifi"
+    echo "  p        password            Show current network passowrd"
+    echo "  s        status              Check wifi status"
+    echo "  sc       scan                Check available wifi networks"
+    echo
+    echo "Flags:"
+    echo "  -h   --help                  Display help information"
+    echo
+    ;;
+  *)
+    echo "Unsupported command '"$1"'"
+    ;;
+  esac
+)
+
+# `v` with no arguments opens the current directory in Vim, otherwise opens the
+# given location
+v() {
+  if [ $# -eq 0 ]; then
+    vim .
+  else
+    vim "$@"
+  fi
+}
+
+# Open location
+o() {
+  if [ $# -eq 0 ]; then
+    open . >/dev/null 2>&1
+  else
+    open "$@" >/dev/null 2>&1
+  fi
+}
+
+# Linux's tac on macOS
+tac() {
+  tail -r "$@"
+}
+
+# List of used ports
+ports() {
+  case $1 in
+  -h | --help | help)
+    echo "Usage: $(basename "$0")"
+    return 1
+    ;;
+  esac
+  lsof -iTCP -sTCP:LISTEN -P
+}
