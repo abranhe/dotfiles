@@ -2,14 +2,14 @@ cask_args appdir: '/Applications'
 
 tap 'homebrew/cask'
 tap 'homebrew/core'
-tap "homebrew/services"
+tap 'homebrew/services'
 
-# brew "go"
+# brew 'go'
 brew 'git'
 brew 'gh'
 brew 'jq'
-brew "zsh"
-brew "awscli"
+brew 'zsh'
+brew 'awscli'
 brew 'node'
 brew 'yarn'
 brew 'wget'
@@ -17,8 +17,6 @@ brew 'python'
 brew 'mysql'
 # brew 'prisma'
 # brew 'shellcheck'
-brew 'docker'
-brew 'docker-compose'
 
 # Shell
 brew 'zsh'
@@ -51,7 +49,7 @@ cask 'adobe-creative-cloud'
 
 # Message
 cask 'slack'
-cask 'zoomus'
+cask 'zoom'
 
 # Entretainment
 # cask 'popcorn-time'
