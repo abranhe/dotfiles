@@ -1,11 +1,15 @@
+cask_args appdir: '/Applications'
+
 tap 'homebrew/cask'
 tap 'homebrew/core'
+tap "homebrew/services"
 
-# Some usefull packages
+# brew "go"
 brew 'git'
 brew 'gh'
 brew 'jq'
-
+brew "zsh"
+brew "awscli"
 brew 'node'
 brew 'yarn'
 brew 'wget'
