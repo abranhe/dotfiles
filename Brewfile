@@ -4,6 +4,7 @@ tap 'homebrew/cask'
 tap 'homebrew/core'
 tap 'homebrew/services'
 
+brew 'n'
 # brew 'go'
 brew 'zsh'
 brew 'git'
@@ -50,5 +51,5 @@ cask 'zoom'
 cask 'slack'
 
 # Entretainment
-# cask 'popcorn-time'
 # cask 'spotify'
+# cask 'popcorn-time'
