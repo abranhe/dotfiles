@@ -1,4 +1,26 @@
-*~
+# Mac
 .DS_Store
+
+# VSCode
+.vscode/
+
+# JetBrain
+.idea/
+
+# npm
+npm-debug.log
+
+# yarn
+yarn-error.log
+
+# vim
+*.swp
+
+# git
+*.patch
+
+# Extra
+*~
 *.WIP.*
 *.BAK.*
+.history
