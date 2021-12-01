@@ -5,26 +5,24 @@ tap 'homebrew/core'
 tap 'homebrew/services'
 
 # brew 'go'
+brew 'zsh'
 brew 'git'
 brew 'gh'
 brew 'jq'
 brew 'zsh'
-brew 'awscli'
 brew 'node'
 brew 'yarn'
 brew 'wget'
-brew 'python'
 brew 'mysql'
+brew 'python'
+brew 'awscli'
 # brew 'prisma'
 # brew 'shellcheck'
 
-# Shell
-brew 'zsh'
-
 # Browsers
-# cask 'google-chrome'
-cask 'firefox'
 # cask 'opera'
+cask 'firefox'
+cask 'google-chrome'
 
 # Tools
 cask 'lens'
@@ -40,16 +38,16 @@ cask 'datagrip'
 # cask 'adoptopenjdk8'
 # cask 'intellij-idea'
 # cask 'android-studio'
-cask 'visual-studio-code'
 # cask 'graphql-playground'
+cask 'visual-studio-code'
 
 # Design
 # cask 'sketch'
 cask 'adobe-creative-cloud'
 
 # Message
-cask 'slack'
 cask 'zoom'
+cask 'slack'
 
 # Entretainment
 # cask 'popcorn-time'
