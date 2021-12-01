@@ -10,6 +10,9 @@ co = checkout
 ci = commit
 br = branch
 
+# Show last commit
+last = log -1 HEAD
+
 # Show the diff between the latest commit and the current state
 d = !"git diff-index --quiet HEAD -- || clear; git --no-pager diff --patch-with-stat"
 
@@ -176,6 +179,10 @@ pushInsteadOf = "git://gist.github.com/"
 [url "git://gist.github.com/"]
 
 insteadOf = "gist:"
+
+[url "git@gitlab.com:"]
+
+insteadOf = https://gitlab.com/
 
 [commit]
 gpgsign = true
