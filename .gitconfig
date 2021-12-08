@@ -188,7 +188,5 @@ insteadOf = "gist:"
 
 insteadOf = https://gitlab.com/
 
-[commit]
-gpgsign = true
 [pull]
 rebase = true
