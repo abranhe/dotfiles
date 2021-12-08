@@ -1,17 +1,27 @@
 # dotfiles
 
-> My dotfiles.
+> Abraham's dotfiles.
 
-1. `git clone abranhe/dotfiles && cd dotfiles`
-2. `./install.sh`
-3. Have fun!
+## Installation
+
+```sh
+git clone abranhe/dotfiles && cd dotfiles
+```
+
+and 
+
+```sh
+./setup.sh
+```
+
+Have fun!
 ## Contributing
 
 Feel free to open any issues or fork away.
 
-## Usefull links
+## Useful links
 
-Some of the useful links I used:
+Some of the resources I used are:
 
 - https://github.com/mathiasbynens/dotfiles
 - https://github.com/kevinSuttle/dotfiles
