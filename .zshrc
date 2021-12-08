@@ -17,7 +17,7 @@ plugins=(
 source $ZSH/oh-my-zsh.sh
 
 # Load .aliases and other files...
-for file in ~/.{aliases,functions,path,dockerfunc,exports}; do
+for file in ~/dotfiles/.{aliases,functions,path,exports}; do
   if [[ -r "$file" ]] && [[ -f "$file" ]]; then
     # shellcheck source=/dev/null
     source "$file"

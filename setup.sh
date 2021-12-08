@@ -1,9 +1,10 @@
 #!/bin/bash
 #
+# https://abran.co/dots
 # This file creates setups the environment to work
-# from a new mac computer.
+# from a new computer.
 
-# Check if is a mac.
+# Check if the compuser is a mac, otherwise exit.
 if [ "$(uname)" != "Darwin" ]; then
   echo "This script is only for mac"
   exit 1
@@ -23,3 +24,29 @@ else
   echo "Homebrew is already installed."
   brew update
 fi
+
+# Install all apps from the Brewfile.
+echo "Installing apps from Brewfile"
+brew bundle
+
+# Check if zsh is installed and install it if not installed.
+if ! [ -x "$(command -v zsh)" ]; then
+  echo "Installing zsh"
+  brew install zsh
+fi
+
+# Install oh-my-zsh.
+echo "Installing oh-my-zsh"
+sh -c "$(curl -fsSL https://raw.githubusercontent.com/robbyrussell/oh-my-zsh/master/tools/install.sh)"
+
+# Create symlinks for dotfiles. Overwrite if the file already exists.
+echo "Creating symlinks for dotfiles"
+ln -sfv ~/dotfiles/.zshrc ~/.zshrc
+ln -sfv ~/dotfiles/.gitconfig ~/.gitconfig
+ln -sfv ~/dotfiles/.gitignore ~/.gitignore
+
+echo "You still need to add your email for git config. Type:"
+echo
+echo "git config --global user.email <your email>'"
+
+echo "Done! ✨"

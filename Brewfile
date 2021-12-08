@@ -39,6 +39,8 @@ cask 'datagrip'
 # cask 'adoptopenjdk8'
 # cask 'intellij-idea'
 # cask 'android-studio'
+cask 'openvpn-connect'
+cask 'browserstacklocal'
 # cask 'graphql-playground'
 cask 'visual-studio-code'
 
