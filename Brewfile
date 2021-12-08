@@ -51,6 +51,7 @@ cask 'adobe-creative-cloud'
 # Message
 cask 'zoom'
 cask 'slack'
+cask 'whatsapp'
 
 # Entretainment
 # cask 'spotify'
