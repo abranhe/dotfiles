@@ -4,12 +4,6 @@
 alias cl="clear"
 alias l="ls -l"
 
-# Git aliases
-# alias gs="git status"
-# alias ga="git add -A"
-# alias wip="git add -A && git commit -m 'WIP'" # Use it as git wip
-# alias gl="git log --all --graph --decorate" # Use it as g l
-
 # Apache and MySQL aliases
 alias apache.start="sudo apachectl start"
 alias apache.stop="sudo apachectl stop"
@@ -41,15 +35,6 @@ alias kl="kubectl logs"
 # Typos
 alias eixt="exit"
 
-# TODO: This comes with zsh?
-# Easier navigation: .., ..., ...., ....., ~ and -
-# alias ..="cd .."
-# alias ...="cd ../.."
-# alias ....="cd ../../.."
-# alias .....="cd ../../../.."
-# alias ~="cd ~" # `cd` is probably faster to type though
-# alias -- -="cd -"
-
 # Set default Python 3.7 and pip3 to path
 alias python='python3'
 alias pip='pip3'
@@ -80,6 +65,7 @@ alias mv='mv -i'
 # Docker
 alias d='docker $*'
 alias d-c='docker-compose $*'
+alias dlogin="aws --profile default ecr get-login-password --region us-east-2 | docker login --username AWS --password-stdin 105713698156.dkr.ecr.us-east-2.amazonaws.com 2> /dev/null"
 
 # Git
 alias gac='git add -A && git commit -m'

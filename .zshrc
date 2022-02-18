@@ -11,6 +11,7 @@ plugins=(
   macos
   vscode
   kubectl
+  symfony
   git-extras
 )
 

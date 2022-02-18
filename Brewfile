@@ -18,7 +18,9 @@ brew 'mysql'
 brew 'python'
 brew 'awscli'
 # brew 'prisma'
+brew 'libssh2'
 # brew 'shellcheck'
+brew 'localstack'
 
 # Browsers
 # cask 'opera'
