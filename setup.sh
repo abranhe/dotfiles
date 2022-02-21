@@ -1,8 +1,7 @@
 #!/bin/bash
 #
 # https://abran.co/dots
-# This file creates setups the environment to work
-# from a new computer.
+# This file creates the environment to work from a new computer.
 
 # Check if the compuser is a mac, otherwise exit.
 if [ "$(uname)" != "Darwin" ]; then
