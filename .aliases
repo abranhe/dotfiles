@@ -26,7 +26,7 @@ alias yd="yarn dev"
 alias yt="yarn test"
 alias ys="yarn start"
 alias yb="yarn build"
-alias yw="yarn whatch"
+alias yw="yarn watch"
 
 # Kubernetes aliases
 alias k="kubectl"

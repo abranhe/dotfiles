@@ -23,4 +23,5 @@ yarn-error.log
 *~
 *.WIP.*
 *.BAK.*
+*.TMP.*
 .history
