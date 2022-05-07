@@ -18,15 +18,20 @@ fi
 # Check if homebrew is installed.
 if ! command -v brew >/dev/null 2>&1; then
   echo "Homebrew is not installed. Installing..."
-  /usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
+  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 else
   echo "Homebrew is already installed."
   brew update
 fi
 
+# Fixing issue with M1 ships. https://stackoverflow.com/a/65505326/7602110
+if [[ "$(uname -m)" == "arm64" ]]; then
+  export PATH="/opt/homebrew/bin:${PATH}"
+fi
+
 # Install all apps from the Brewfile.
 echo "Installing apps from Brewfile"
-brew bundle
+brew bundle --file ~/dotfiles/Brewfile
 
 # Check if zsh is installed and install it if not installed.
 if ! [ -x "$(command -v zsh)" ]; then

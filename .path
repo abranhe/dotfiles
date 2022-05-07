@@ -2,3 +2,8 @@
 
 # go path
 export GOPATH="${HOME}/.go"
+
+# Homebrew for Apple's M1 chips
+if [[ "$(uname -m)" == "arm64" ]]; then
+  export PATH="/opt/homebrew/bin:${PATH}"
+fi
