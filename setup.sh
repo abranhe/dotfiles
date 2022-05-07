@@ -24,7 +24,7 @@ else
   brew update
 fi
 
-# Fixing issue with M1 ships. https://stackoverflow.com/a/65505326/7602110
+# Fixing issue with M1 chips. https://stackoverflow.com/a/65505326/7602110
 if [[ "$(uname -m)" == "arm64" ]]; then
   export PATH="/opt/homebrew/bin:${PATH}"
 fi
