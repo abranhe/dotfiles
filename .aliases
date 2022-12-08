@@ -104,3 +104,9 @@ alias copy="pbcopy"
 
 # Remove
 alias fiu="ssh -t chern433@fiu \"source ~/.bashrc; bash -l\""
+
+# PhpStorm
+alias phpstorm="open -na \"PhpStorm.app\" --args \"$@\""
+
+# Draw.io
+alias draw.io='/Applications/draw.io.app/Contents/MacOS/draw.io'

@@ -21,7 +21,10 @@ yarn-error.log
 
 # Extra
 *~
-*.WIP.*
-*.BAK.*
-*.TMP.*
+*.wip.*
+*.bak.*
+*.tmp.*
 .history
+
+# Draw.io
+*.drawio.*

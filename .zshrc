@@ -13,6 +13,8 @@ plugins=(
   kubectl
   symfony
   git-extras
+  docker
+  docker-compose
 )
 
 source $ZSH/oh-my-zsh.sh
@@ -25,3 +27,16 @@ for file in ~/dotfiles/.{aliases,functions,path,exports}; do
   fi
 done
 unset file
+
+autoload -U +X bashcompinit && bashcompinit
+complete -o nospace -C /usr/local/bin/terraform terraform
+
+# Date on the terminal
+# https://superuser.com/a/1251045/859165
+local ret_status="%(?:%{$fg_bold[green]%}➜ :%{$fg_bold[red]%}➜ )"
+
+PROMPT='${ret_status} %{$fg[cyan]%}%c%{$reset_color%} $(git_prompt_info)'
+
+# cyan date
+RPROMPT="%{$fg[cyan]%}%@%{$reset_color%}"
+

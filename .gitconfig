@@ -1,5 +1,5 @@
 [user]
-name = "Abraham Hernandez"
+	name = Abraham Hernandez
 
 [alias]
 
@@ -189,3 +189,6 @@ insteadOf = https://gitlab.com/
 
 [pull]
 rebase = true
+
+[init]
+	defaultBranch = main
