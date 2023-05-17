@@ -15,6 +15,8 @@ plugins=(
   git-extras
   docker
   docker-compose
+  composer
+  1password
 )
 
 source $ZSH/oh-my-zsh.sh

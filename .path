@@ -5,6 +5,10 @@ export GOPATH="${HOME}/go"
 export GOROOT="$(brew --prefix golang)/libexec"
 export PATH="$PATH:${GOPATH}/bin:${GOROOT}/bin"
 
+# Node
+NODE_VERSION=18
+export PATH="/usr/local/opt/node@$NODE_VERSION/bin:$PATH"
+
 # PHP
 PHP_VERSION=8.1 # 7.4 or 8.1
 export PATH="/usr/local/opt/php@$PHP_VERSION/bin:$PATH"
