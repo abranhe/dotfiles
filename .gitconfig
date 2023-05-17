@@ -1,5 +1,25 @@
 [user]
-	name = Abraham Hernandez
+  name = Abraham
+  email = abraham@abranhe.com
+  signingkey = ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINjVy6yFl6OP2zFwNmCt+vMI7Ygd4TIXCUSrDye53EaP
+
+[gpg]
+  format = ssh
+
+[gpg "ssh"]
+  program = "/Applications/1Password.app/Contents/MacOS/op-ssh-sign"
+
+[commit]
+  gpgsign = true
+
+[gpg]
+  format = ssh
+
+[gpg "ssh"]
+  program = "/Applications/1Password.app/Contents/MacOS/op-ssh-sign"
+
+[commit]
+  gpgsign = true
 
 [alias]
 
@@ -113,6 +133,7 @@ whitespace = space-before-tab,-indent-with-non-tab,trailing-space
 trustctime = false
 editor = vim
 
+page = less -FRSX
 [color]
 
 # Use colors in Git commands that are capable of colored output when
