@@ -28,7 +28,3 @@ Some of the resources I used are:
 - https://openfolder.sh/macos-migrations-with-brewfile
 - https://github.com/styfle/dotfiles
 - https://openfolder.sh/macos-migrations-with-brewfile
-
-## TODO
-
-- [ ] Add support for Linux
