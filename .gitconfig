@@ -1,16 +1,5 @@
 [user]
   name = Abraham
-  email = abraham@abranhe.com
-
-[gpg]
-  format = ssh
-
-[gpg "ssh"]
-  program = "/Applications/1Password.app/Contents/MacOS/op-ssh-sign"
-  allowedSignersFile = ~/.ssh/allowed_signers
-
-[commit]
-  gpgsign = true
 
 [gpg]
   format = ssh
@@ -113,12 +102,15 @@ patchit = "!f() { echo $1.patch | sed s_pull/[0-9]*/commits_commit_ | xargs curl
 patchit-please = "!f() { echo $1.patch | sed s_pull/[0-9]*/commits_commit_ | xargs curl -L | git am -3 --whitespace=fix; }; f"
 # patchit-please = "!f() { curl -L $1.patch | git am -3 --whitespace=fix; }; f"
 
+email-setup = "!email=$(~/dotfiles/email_setup.sh) && git config --global user.email \"$email\""
+
 [apply]
 
 # Detect whitespace errors when applying a patch
 whitespace = fix
 
 [core]
+hooksPath = ~/dotfiles/hooks
 
 # Use custom `.gitignore` file
 excludesfile = ~/.gitignore
