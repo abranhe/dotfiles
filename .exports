@@ -2,3 +2,12 @@
 
 # Make vim the default editor
 export EDITOR=/usr/bin/vim
+
+# NPM Token
+export NPM_TOKEN=$(op read "op://dev/npm_token/value")
+
+# OpenAI
+export OPENAI_API_KEY=$(op read "op://dev/openai_api_key/value")
+
+# PyPi
+export PYPI_TOKEN=$(op read "op://dev/pypi_token/value")
