@@ -267,3 +267,16 @@ ports() {
   esac
   lsof -iTCP -sTCP:LISTEN -P
 }
+
+# Decode URL
+# https://stackoverflow.com/a/21693459/7602110
+function decodeurl() {
+  url=$1
+
+  if [ -z "$url" ]; then
+    echo "Usage: decodeurl <url>"
+    return 1
+  fi
+
+  python3 -c "import urllib.parse; print(urllib.parse.unquote('$url'))"
+}
