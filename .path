@@ -25,4 +25,5 @@ if [[ "$(uname -m)" == "arm64" ]]; then
   export PATH="/opt/homebrew/bin:${PATH}"
 fi
 
+# Just adding the bin scripts to the path
 export PATH="${HOME}/dotfiles/bin:$PATH"

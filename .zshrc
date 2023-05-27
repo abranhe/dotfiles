@@ -1,8 +1,8 @@
 # Path to your oh-my-zsh installation.
 export ZSH="/Users/$(whoami)/.oh-my-zsh"
 
-#HERE
-ZSH_THEME="robbyrussell"
+# af-magic, robbyrussell
+ZSH_THEME="af-magic"
 
 # Oh My Shell Plugins
 plugins=(
@@ -36,14 +36,13 @@ for file in ~/dotfiles/.{aliases,functions,path,exports}; do
 done
 unset file
 
-# TODO: check what this was for
+# This is used to load the bashcompinit into memory, which enables
+# auto-completion functionality for bash.
 autoload -U +X bashcompinit && bashcompinit
 
 # Date on the terminal
 # https://superuser.com/a/1251045/859165
-local ret_status="%(?:%{$fg_bold[green]%}➜ :%{$fg_bold[red]%}➜ )"
-
-PROMPT='${ret_status} %{$fg[cyan]%}%c%{$reset_color%} $(git_prompt_info)'
-
+# local ret_status="%(?:%{$fg_bold[green]%}➜ :%{$fg_bold[red]%}➜ )"
+# PROMPT='${ret_status} %{$fg[cyan]%}%c%{$reset_color%} $(git_prompt_info)'
 # cyan date
-RPROMPT="%{$fg[cyan]%}%@%{$reset_color%}"
+# RPROMPT="%{$fg[cyan]%}%@%{$reset_color%}"
