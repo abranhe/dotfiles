@@ -46,8 +46,9 @@ alias week='date +%V'
 alias timer='echo "Timer started. Stop with Ctrl-D." && date && time cat && date'
 
 # IP addresses
-alias ip="dig +short myip.opendns.com @resolver3.opendns.com" # See https://go.abranhe.com/find-ip
-# TODO: Not working as expected
+# https://stackoverflow.com/a/14614203/7602110
+alias ip='curl ifconfig.me -w "\n"'
+# Rename localip into ip <-p|--private>
 alias localip="sudo ifconfig | grep -Eo 'inet (addr:)?([0-9]*\\.){3}[0-9]*' | grep -Eo '([0-9]*\\.){3}[0-9]*' | grep -v '127.0.0.1'"
 
 # vhosts
@@ -102,11 +103,15 @@ alias activity='open /Applications/Utilities/Activity\ Monitor.app'
 # https://apple.stackexchange.com/a/15322/258558
 alias copy="pbcopy"
 
-# Remove
-alias fiu="ssh -t chern433@fiu \"source ~/.bashrc; bash -l\""
-
 # PhpStorm
 alias phpstorm="open -na \"PhpStorm.app\" --args \"$@\""
 
-# Draw.io
-alias draw.io='/Applications/draw.io.app/Contents/MacOS/draw.io'
+# nvim
+alias vim='nvim -u ~/.config/nvim/init.vim'
+
+# draw.io
+alias drawio='/Applications/draw.io.app/Contents/MacOS/draw.io'
+
+# Work folder aliases
+alias microservices='~/dev/gitlab/excelimpact/microservices'
+alias cronjobs='~/dev/gitlab/excelimpact/cronjobs'

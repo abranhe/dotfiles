@@ -17,6 +17,12 @@ plugins=(
   docker-compose
   composer
   1password
+  terraform
+  rust
+  golang
+  thefuck
+  history
+  brew
 )
 
 source $ZSH/oh-my-zsh.sh
@@ -30,8 +36,8 @@ for file in ~/dotfiles/.{aliases,functions,path,exports}; do
 done
 unset file
 
+# TODO: check what this was for
 autoload -U +X bashcompinit && bashcompinit
-complete -o nospace -C /usr/local/bin/terraform terraform
 
 # Date on the terminal
 # https://superuser.com/a/1251045/859165
@@ -41,4 +47,3 @@ PROMPT='${ret_status} %{$fg[cyan]%}%c%{$reset_color%} $(git_prompt_info)'
 
 # cyan date
 RPROMPT="%{$fg[cyan]%}%@%{$reset_color%}"
-
