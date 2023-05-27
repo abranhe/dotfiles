@@ -47,6 +47,7 @@ echo "Creating symlinks for dotfiles"
 ln -sfv ~/dotfiles/.zshrc ~/.zshrc
 ln -sfv ~/dotfiles/.gitconfig ~/.gitconfig
 ln -sfv ~/dotfiles/.gitignore ~/.gitignore
+ln -sfv ~/dotfiles/init.vim ~/.config/nvim/init.vim
 
 echo "You still need to add your email for git config. Type:"
 echo

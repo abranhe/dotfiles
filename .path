@@ -24,3 +24,5 @@ export PATH="/usr/local/opt/ruby/bin:$PATH"
 if [[ "$(uname -m)" == "arm64" ]]; then
   export PATH="/opt/homebrew/bin:${PATH}"
 fi
+
+export PATH="${HOME}/dotfiles/bin:$PATH"
