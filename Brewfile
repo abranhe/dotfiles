@@ -72,3 +72,6 @@ cask 'zoom'
 # Entretainment
 # cask 'spotify'
 # cask 'popcorn-time'
+
+# Utils
+cask displaylink

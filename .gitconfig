@@ -1,14 +1,11 @@
-[user]
-  name = Abraham
-
 [gpg]
-  format = ssh
+format = ssh
 
 [gpg "ssh"]
-  program = "/Applications/1Password.app/Contents/MacOS/op-ssh-sign"
+program = "/Applications/1Password.app/Contents/MacOS/op-ssh-sign"
 
 [commit]
-  gpgsign = true
+gpgsign = true
 
 [alias]
 
@@ -70,10 +67,10 @@ fb = "!f() { git branch -a --contains $1; }; f"
 ft = "!f() { git describe --always --contains $1; }; f"
 
 # Find commits by source code
-fc = "!f() { git log --pretty=format:'%C(yellow)%h	%Cblue%ad  %Creset%s%Cgreen  [%cn] %Cred%d' --decorate --date=short -S$1; }; f"
+fc = "!f() { git log --pretty=format:'%C(yellow)%h	%Cblue%ad %Creset%s%Cgreen [%cn] %Cred%d' --decorate --date=short -S$1; }; f"
 
 # Find commits by commit message
-fm = "!f() { git log --pretty=format:'%C(yellow)%h	%Cblue%ad  %Creset%s%Cgreen  [%cn] %Cred%d' --decorate --date=short --grep=$1; }; f"
+fm = "!f() { git log --pretty=format:'%C(yellow)%h	%Cblue%ad %Creset%s%Cgreen [%cn] %Cred%d' --decorate --date=short --grep=$1; }; f"
 
 # Remove branches that have already been merged with master
 # a.k.a. ‘delete merged’
@@ -102,7 +99,7 @@ patchit = "!f() { echo $1.patch | sed s_pull/[0-9]*/commits_commit_ | xargs curl
 patchit-please = "!f() { echo $1.patch | sed s_pull/[0-9]*/commits_commit_ | xargs curl -L | git am -3 --whitespace=fix; }; f"
 # patchit-please = "!f() { curl -L $1.patch | git am -3 --whitespace=fix; }; f"
 
-email-setup = "!email=$(~/dotfiles/email_setup.sh) && git config --global user.email \"$email\""
+email-setup = "!email=$(~/dotfiles/email-setup) && git config --global user.email \"$email\""
 
 [apply]
 
@@ -123,7 +120,7 @@ whitespace = space-before-tab,-indent-with-non-tab,trailing-space
 # Make `git rebase` safer on OS X
 # More info: <http://www.git-tower.com/blog/make-git-rebase-safe-on-osx/>
 trustctime = false
-editor = vim
+editor = nvim
 
 page = less -FRSX
 [color]
@@ -204,4 +201,12 @@ insteadOf = https://gitlab.com/
 rebase = true
 
 [init]
-	defaultBranch = main
+defaultBranch = main
+
+#####################################################
+[include]
+	path = ~/.config/git-config-manager/.gitconfig-main
+[includeIf "gitdir:~/dev/gitlab/"]
+	path = ~/.config/git-config-manager/.gitconfig-work
+[includeIf "gitdir:~/dev/github/"]
+	path = ~/.config/git-config-manager/.gitconfig-personal
