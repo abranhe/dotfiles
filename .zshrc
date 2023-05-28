@@ -1,8 +1,7 @@
 # Path to your oh-my-zsh installation.
 export ZSH="/Users/$(whoami)/.oh-my-zsh"
 
-# af-magic, robbyrussell
-ZSH_THEME="af-magic"
+ZSH_THEME="robbyrussell"
 
 # Oh My Shell Plugins
 plugins=(
