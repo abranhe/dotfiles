@@ -28,16 +28,6 @@ gitio() {
   curl -i https://git.io/ -F "url=${2}" -F "code=${1}"
 }
 
-# Create a short URL.
-shorturl() {
-  if [ -z "${1}" ]; then
-    echo "Usage: shorturl <slug> <url>"
-    return 1
-  fi
-
-  curl -s https://api.abranhe.com/shorturl -d "slug=${1}" -d "url=${2}"
-}
-
 # extract: extract of compressed-files
 extract() {
   if [[ $# -eq 0 ]]; then
