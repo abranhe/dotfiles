@@ -5,7 +5,7 @@
 ## Installation
 
 ```sh
-git clone abranhe/dotfiles && cd dotfiles
+git clone abrahamcalf/dotfiles && cd dotfiles
 ```
 
 and 

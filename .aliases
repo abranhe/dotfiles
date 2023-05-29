@@ -79,7 +79,6 @@ alias simulator="open /Applications/Xcode.app/Contents/Developer/Applications/Si
 alias chrome='/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome'
 
 # Kill all the tabs in Chrome to free up memory
-# Read: https://go.abranhe.com/kill-chrome-tabs
 alias chromekill="ps ux | grep '[C]hrome Helper --type=renderer' | grep -v extension-process | tr -s ' ' | cut -d ' ' -f2 | xargs kill"
 
 # Recursively delete `.DS_Store` files
