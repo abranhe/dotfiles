@@ -47,10 +47,8 @@ echo "Creating symlinks for dotfiles"
 ln -sfv ~/dotfiles/.zshrc ~/.zshrc
 ln -sfv ~/dotfiles/.gitconfig ~/.gitconfig
 ln -sfv ~/dotfiles/.gitignore ~/.gitignore
-ln -sfv ~/dotfiles/init.vim ~/.config/nvim/init.vim
+ln -sfv ~/dotfiles/.vimrc ~/.config/nvim/init.vim
 
-echo "You still need to add your email for git config. Type:"
-echo
-echo "git config --global user.email <your email>'"
+echo "Manage your Git profiles using https://github.com/abrahamcalf/git-config-manager"
 
 echo "Done! ✨"

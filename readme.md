@@ -15,6 +15,7 @@ and
 ```
 
 Have fun!
+
 ## Contributing
 
 Feel free to open any issues or fork away.

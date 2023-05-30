@@ -55,7 +55,7 @@ alias localip="sudo ifconfig | grep -Eo 'inet (addr:)?([0-9]*\\.){3}[0-9]*' | gr
 alias hosts='sudo vim /etc/hosts'
 
 # copy working directory
-alias cwd='pwd | tr -d "\r\n" | xclip -selection clipboard'
+alias cwd='pwd | tr -d "\r\n" | copy | echo "=> Copied current directory to the clipboard"'
 
 # copy file interactive
 alias cp='cp -i'
