@@ -66,7 +66,6 @@ alias mv='mv -i'
 # Docker
 alias d='docker $*'
 alias d-c='docker-compose $*'
-alias dlogin="aws --profile default ecr get-login-password --region us-east-2 | docker login --username AWS --password-stdin 105713698156.dkr.ecr.us-east-2.amazonaws.com 2> /dev/null"
 
 # Git
 alias gac='git add -A && git commit -m'
@@ -110,7 +109,3 @@ alias vim='nvim -u ~/.config/nvim/init.vim'
 
 # draw.io
 alias drawio='/Applications/draw.io.app/Contents/MacOS/draw.io'
-
-# Work folder aliases
-alias microservices='~/dev/gitlab/excelimpact/microservices'
-alias cronjobs='~/dev/gitlab/excelimpact/cronjobs'
