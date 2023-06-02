@@ -22,6 +22,7 @@ plugins=(
   thefuck
   history
   brew
+  zsh-autosuggestions
 )
 
 source $ZSH/oh-my-zsh.sh
