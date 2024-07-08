@@ -26,6 +26,7 @@ brew 'libssh2'
 # brew 'localstack'
 brew 'localstack'
 brew 'git-extras'
+brew 'thefuck'
 
 # Browsers
 # cask 'opera'
