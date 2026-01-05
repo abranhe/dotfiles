@@ -29,3 +29,8 @@ tmp/
 
 # Draw.io
 *.drawio.*
+
+.git_*
+
+# Prompting Rules
+.prompting

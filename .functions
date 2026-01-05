@@ -261,3 +261,9 @@ function decodeurl() {
 
   python3 -c "import urllib.parse; print(urllib.parse.unquote('$url'))"
 }
+
+# Get all hosts from a k8s cluster.
+# https://medium.com/@danielresponda/how-to-query-all-kubernetes-ingress-urls-f3fe6b419831
+k_ingresses() {
+    kubectl get --all-namespaces ingress -o json 2> /dev/null | jq -r '.items[] | .spec.rules[] | .host as $host | .http.paths[] | ( $host + .path)' | sort | grep -v ^/
+}

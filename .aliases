@@ -109,3 +109,5 @@ alias vim='nvim -u ~/.config/nvim/init.vim'
 
 # draw.io
 alias drawio='/Applications/draw.io.app/Contents/MacOS/draw.io'
+
+alias beep='afplay /System/Library/PrivateFrameworks/ScreenReader.framework/Versions/A/Resources/Sounds/AnimationFlyToDownloads.aiff'

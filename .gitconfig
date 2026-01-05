@@ -107,8 +107,6 @@ email-setup = "!email=$(~/dotfiles/email-setup) && git config --global user.emai
 whitespace = fix
 
 [core]
-hooksPath = ~/dotfiles/hooks
-
 # Use custom `.gitignore` file
 excludesfile = ~/.gitignore
 

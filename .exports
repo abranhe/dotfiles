@@ -1,13 +1,8 @@
 #!/bin/bash
 
-# Make vim the default editor
-export EDITOR=/usr/bin/vim
+# Make Neovim the default editor
+export EDITOR=/usr/local/bin/nvim
 
-# NPM Token
-export NPM_TOKEN=$(op read "op://dev/npm_token/value")
-
-# OpenAI
-export OPENAI_API_KEY=$(op read "op://dev/openai_api_key/value")
-
-# PyPi
-export PYPI_TOKEN=$(op read "op://dev/pypi_token/value")
+export NVM_DIR="$HOME/.nvm"
+[ -s "/usr/local/opt/nvm/nvm.sh" ] && \. "/usr/local/opt/nvm/nvm.sh"  # This loads nvm
+[ -s "/usr/local/opt/nvm/etc/bash_completion.d/nvm" ] && \. "/usr/local/opt/nvm/etc/bash_completion.d/nvm"  # This loads nvm bash_completion

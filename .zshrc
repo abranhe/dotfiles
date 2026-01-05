@@ -10,15 +10,15 @@ plugins=(
   macos
   vscode
   kubectl
-  symfony
+  # symfony
   git-extras
   docker
   docker-compose
-  composer
+  # composer
   1password
-  terraform
-  rust
-  golang
+  # terraform
+  # rust
+  # golang
   thefuck
   history
   brew
@@ -46,3 +46,8 @@ autoload -U +X bashcompinit && bashcompinit
 # PROMPT='${ret_status} %{$fg[cyan]%}%c%{$reset_color%} $(git_prompt_info)'
 # cyan date
 # RPROMPT="%{$fg[cyan]%}%@%{$reset_color%}"
+
+source ~/.config/op/plugins.sh
+
+
+
