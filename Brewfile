@@ -1,78 +1,63 @@
 cask_args appdir: '/Applications'
 
-tap 'homebrew/cask'
-tap 'homebrew/core'
-tap 'homebrew/services'
+#################### CLI Tools
 
-brew 'n'
-# brew 'go'
-brew 'zsh'
-brew 'git'
-brew 'gh'
+# Must Have
 brew 'jq'
+brew 'git'
 brew 'zsh'
-brew 'node'
-brew 'glab'
-brew 'yarn'
-brew 'rust'
+brew 'zsh-autosuggestions'
+brew 'zsh-autocomplete'
 brew 'wget'
-brew 'mysql'
-brew 'python'
+brew 'libssh2'
+brew 'neovim'  
+brew 'docker'
+
+# Languages
+# brew 'go'
+# brew 'rust'
+# brew 'python'
+brew 'git-extras'
+
+# Platforms
+# brew 'gh'
+brew 'glab'
 brew 'awscli'
+# brew 'localstack'
+brew 'volta' 
+
+brew 'nvm'
+# brew 'n'
+# brew 'yarn'
+# brew 'mysql'
 # brew 'git-lfs'
 # brew 'prisma'
-brew 'libssh2'
 # brew 'shellcheck'
-# brew 'localstack'
-brew 'localstack'
-brew 'git-extras'
-brew 'thefuck'
+tap 'abranhe-forks/extension'
+brew 'abranhe-forks/extension'
 
-# Browsers
-# cask 'opera'
-# cask 'firefox'
-cask 'google-chrome'
-cask 'brave-browser'
+#################### Apps
 
-# Tools
-# cask 'lens'
-cask 'loom'
 cask 'iterm2'
+cask 'displaylink'
+cask 'brave-browser'
+cask 'docker-desktop'
 cask 'ngrok'
-# cask 'drawio'
-cask 'notion'
-cask 'docker'
 cask 'postman'
-cask 'datagrip'
-cask 'whatsapp'
-# cask 'macdown'
-# cask 'sequel-pro'
-# cask 'cleanmymac'
-# cask 'appcleaner'
-# cask 'google-drive'
-# cask 'adoptopenjdk8'
-# cask 'intellij-idea'
-# cask 'android-studio'
-# cask 'openvpn-connect'
-# cask 'browserstacklocal'
-cask 'microsoft-excel'
-cask 'nosql-workbench'
-# cask 'graphql-playground'
 cask 'visual-studio-code'
-cask 'nordvpn'
+cask '1password'
+cask 'pronotes'
+cask 'jiggler'
+cask 'chatgpt'
 
-# Design
-# cask 'sketch'
-cask 'adobe-creative-cloud'
+cask 'lens'
+cask 'slack'
+cask 'openvpn-connect'
+cask 'beekeeper-studio'
+cask 'chrome-remote-desktop-host'
+cask 'stats'
 
-# Message
-cask 'zoom'
-# cask 'slack'
-# cask 'whatsapp'
-
-# Entretainment
-# cask 'spotify'
-# cask 'popcorn-time'
-
-# Utils
-cask displaylink
+# cask 'drawio'
+# cask 'datagrip'
+# cask 'microsoft-excel'
+# cask 'nosql-workbench'

@@ -6,7 +6,7 @@ ZSH_THEME="robbyrussell"
 # Oh My Shell Plugins
 plugins=(
   git
-  yarn
+  # yarn
   macos
   vscode
   kubectl
@@ -19,10 +19,9 @@ plugins=(
   # terraform
   # rust
   # golang
-  thefuck
+  # thefuck
   history
   brew
-  zsh-autosuggestions
 )
 
 source $ZSH/oh-my-zsh.sh
@@ -47,7 +46,4 @@ autoload -U +X bashcompinit && bashcompinit
 # cyan date
 # RPROMPT="%{$fg[cyan]%}%@%{$reset_color%}"
 
-source ~/.config/op/plugins.sh
-
-
-
+# source ~/.config/op/plugins.sh

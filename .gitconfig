@@ -204,7 +204,7 @@ defaultBranch = main
 #####################################################
 [include]
 	path = ~/.config/git-config-manager/.gitconfig-main
-[includeIf "gitdir:~/dev/gitlab/"]
+[includeIf "gitdir:~/Developer/gitlab/"]
 	path = ~/.config/git-config-manager/.gitconfig-work
-[includeIf "gitdir:~/dev/github/"]
+[includeIf "gitdir:~/Developer/github/"]
 	path = ~/.config/git-config-manager/.gitconfig-personal

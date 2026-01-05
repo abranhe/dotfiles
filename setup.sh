@@ -2,7 +2,9 @@
 #
 # This file creates the environment to work from a new computer.
 
-# Check if the compuser is a mac, otherwise exit.
+#
+
+# Check if the computer is a mac, otherwise exit.
 if [ "$(uname)" != "Darwin" ]; then
   echo "This script is only for mac"
   exit 1
@@ -30,7 +32,7 @@ fi
 
 # Install all apps from the Brewfile.
 echo "Installing apps from Brewfile"
-brew bundle --file ~/dotfiles/Brewfile
+brew bundle --file ~/Developer/github/abranhe/dotfiles/Brewfile
 
 # Check if zsh is installed and install it if not installed.
 if ! [ -x "$(command -v zsh)" ]; then
@@ -42,16 +44,13 @@ fi
 echo "Installing oh-my-zsh"
 sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
 
-# Installing Zsh autosuggestions plugin
-git clone https://github.com/zsh-users/zsh-autosuggestions ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-autosuggestions
-
 # Create symlinks for dotfiles. Overwrite if the file already exists.
 echo "Creating symlinks for dotfiles"
-ln -sfv ~/dotfiles/.zshrc ~/.zshrc
-ln -sfv ~/dotfiles/.gitconfig ~/.gitconfig
-ln -sfv ~/dotfiles/.gitignore ~/.gitignore
-ln -sfv ~/dotfiles/.vimrc ~/.config/nvim/init.vim
+ln -sfv ~/Developer/github/abranhe/dotfiles/.zshrc ~/.zshrc
+ln -sfv ~/Developer/github/abranhe/dotfiles/.gitconfig ~/.gitconfig
+ln -sfv ~/Developer/github/abranhe/dotfiles/.gitignore ~/.gitignore
+ln -sfv ~/Developer/github/abranhe/dotfiles/.vimrc ~/.config/nvim/init.vim
 
-echo "Manage your Git profiles using https://github.com/abrahamcalf/git-config-manager"
+echo "Manage your Git profiles using https://github.com/abranhe/git-config-manager"
 
 echo "Done! ✨"
