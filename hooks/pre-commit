@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+#
+# Refuse commits that contain credentials. `dot hooks` points core.hooksPath of
+# the public repo and every private layer here.
+#
+# Uses gitleaks when installed and falls back to a few well known token
+# patterns otherwise. Bypass a false positive with a `gitleaks:allow` comment
+# on the line, never by committing the secret.
+
+set -euo pipefail
+
+red=$'\033[31m'
+reset=$'\033[0m'
+
+block() {
+  printf '%s✗ Commit blocked:%s %s\n' "$red" "$reset" "$1" >&2
+  exit 1
+}
+
+# Files that should never be committed, whatever they contain.
+forbidden="$(git diff --cached --name-only --diff-filter=ACMR |
+  grep -E '(^|/)(\.env(\..+)?|secrets\.env|id_(rsa|ed25519|ecdsa)|.+\.(pem|p12|pfx|key|keychain))$' |
+  grep -vE '\.env\.(example|sample|template)$' || true)"
+if [ -n "$forbidden" ]; then
+  block "these files look like credentials:
+$forbidden"
+fi
+
+if command -v gitleaks >/dev/null 2>&1; then
+  gitleaks git --pre-commit --staged --redact --no-banner --verbose --log-level warn ||
+    block "gitleaks found a secret (see above)."
+  exit 0
+fi
+
+echo "gitleaks not installed, using basic secret patterns (brew install gitleaks)" >&2
+patterns='(glpat-[0-9A-Za-z_-]{20,}|gh[pousr]_[0-9A-Za-z]{36}|github_pat_[0-9A-Za-z_]{22,}|AKIA[0-9A-Z]{16}|sk-[A-Za-z0-9_-]{20,}|xox[abprs]-[0-9A-Za-z-]{10,}|npm_[A-Za-z0-9]{36}|-----BEGIN [A-Z ]*PRIVATE KEY-----)'
+matches="$(git diff --cached -U0 --diff-filter=ACMR | grep -E '^\+' | grep -v 'gitleaks:allow' | grep -Eo "$patterns" || true)"
+if [ -n "$matches" ]; then
+  block "staged changes contain what looks like a secret:
+$(echo "$matches" | sed -E 's/^(.{8}).*/  \1…/')"
+fi

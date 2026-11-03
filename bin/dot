@@ -1,0 +1,850 @@
+#!/usr/bin/env bash
+#
+# dot: day-to-day management of these dotfiles and their private layers.
+# Run `dot help` for the list of commands. Written for the bash 3.2 that ships
+# with macOS so it works on a brand new machine.
+
+set -euo pipefail
+
+DOTFILES="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+export DOTFILES
+# shellcheck source=../lib/layers.sh
+source "$DOTFILES/lib/layers.sh"
+
+ASSUME_YES="${DOT_YES:-0}"
+BACKUP_DIR="$HOME/.dotfiles-backup/$(date +%Y%m%d-%H%M%S)"
+OP_SSH_SOCK="$HOME/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock"
+
+if [ -t 1 ]; then
+  bold=$'\033[1m' dim=$'\033[2m' red=$'\033[31m' green=$'\033[32m'
+  yellow=$'\033[33m' blue=$'\033[34m' reset=$'\033[0m'
+else
+  bold='' dim='' red='' green='' yellow='' blue='' reset=''
+fi
+
+#
+# Helpers
+#
+
+info() { printf '%s==>%s %s%s%s\n' "$blue" "$reset" "$bold" "$*" "$reset"; }
+ok() { printf '  %s✓%s %s\n' "$green" "$reset" "$*"; }
+warn() { printf '  %s!%s %s\n' "$yellow" "$reset" "$*" >&2; }
+die() {
+  printf '%s✗%s %s\n' "$red" "$reset" "$*" >&2
+  exit 1
+}
+has() { command -v "$1" >/dev/null 2>&1; }
+
+# Prompts read from the terminal so they also work under `curl | bash`.
+interactive() { [ "$ASSUME_YES" != 1 ] && [ -r /dev/tty ]; }
+
+# ask "question" [y|n]: yes/no question, the second argument is the default.
+ask() {
+  local reply default="${2:-y}" hint="[Y/n]"
+  [ "$default" = n ] && hint="[y/N]"
+  if ! interactive; then [ "$ASSUME_YES" = 1 ] || [ "$default" = y ]; return; fi
+  printf '%s?%s %s %s ' "$yellow" "$reset" "$1" "$hint" >/dev/tty
+  read -r reply </dev/tty || reply=""
+  case "${reply:-$default}" in [Yy]*) return 0 ;; *) return 1 ;; esac
+}
+
+# prompt "question" [default]: free text answer printed to stdout.
+prompt() {
+  local reply
+  if ! interactive; then echo "${2:-}"; return; fi
+  printf '%s?%s %s ' "$yellow" "$reset" "$1" >/dev/tty
+  if [ -n "${2:-}" ]; then printf '%s[%s]%s ' "$dim" "$2" "$reset" >/dev/tty; fi
+  read -r reply </dev/tty || reply=""
+  echo "${reply:-${2:-}}"
+}
+
+# Print the private repos that are cloned, then the public one.
+all_repos() {
+  local dir url
+  while read -r dir url; do
+    if [ -e "$DOTFILES/$dir/.git" ]; then echo "$DOTFILES/$dir"; fi
+  done < <(dot_private_repos)
+  echo "$DOTFILES"
+}
+
+repo_name() {
+  if [ "$1" = "$DOTFILES" ]; then echo "dotfiles (public)"; else echo "${1#"$DOTFILES"/} (private)"; fi
+}
+
+load_brew() {
+  local brew
+  has brew && return 0
+  for brew in /opt/homebrew/bin/brew /usr/local/bin/brew; do
+    if [ -x "$brew" ]; then
+      eval "$("$brew" shellenv)"
+      return 0
+    fi
+  done
+  return 1
+}
+
+use_1password_agent() {
+  if [ -S "$OP_SSH_SOCK" ]; then export SSH_AUTH_SOCK="$OP_SSH_SOCK"; fi
+}
+
+github_ssh_ok() {
+  local out
+  out="$(ssh -T -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new git@github.com 2>&1 || true)"
+  case "$out" in *"successfully authenticated"*) return 0 ;; *) return 1 ;; esac
+}
+
+#
+# Setup
+#
+
+cmd_install() {
+  [ "$(uname -s)" = Darwin ] || die "Only macOS is supported."
+
+  info "Homebrew"
+  if ! load_brew; then
+    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" </dev/tty
+    load_brew || die "Homebrew did not install correctly."
+  fi
+  ok "$(brew --version | head -1)"
+
+  info "Essentials (git, 1Password, gitleaks)"
+  brew install --quiet git gitleaks
+  brew install --quiet --cask 1password-cli
+  if [ ! -d /Applications/1Password.app ]; then brew install --quiet --cask 1password; fi
+  ok "Installed"
+
+  info "Oh My Zsh"
+  if [ -d "$HOME/.oh-my-zsh" ]; then
+    ok "Already installed"
+  else
+    RUNZSH=no CHSH=no KEEP_ZSHRC=yes sh -c \
+      "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
+  fi
+
+  if ask "Set up the private personal/work layers now? (needs 1Password)"; then
+    cmd_private || warn "Skipped private layers. Run 'dot private' when ready."
+  fi
+  choose_layers
+  cmd_hooks
+  cmd_link
+  brew_install
+  mise_install
+  if has op && [ -n "$(secret_files)" ] && ask "Load secrets from 1Password now?"; then
+    cmd_secrets || warn "Could not load secrets. Run 'dot secrets' later."
+  fi
+
+  info "Done"
+  ok "Open a new terminal or run: exec zsh"
+}
+
+# Ask which private layers this machine uses the first time there is a choice.
+choose_layers() {
+  local available chosen
+  [ -f "$DOTFILES_CONFIG/layers" ] && return 0
+  available="$(dot_layers | tr '\n' ' ')"
+  available="${available% }"
+  [ -n "$available" ] || return 0
+  chosen="$(prompt "Layers for this machine:" "$available")"
+  if [ "$chosen" != "$available" ]; then
+    # shellcheck disable=SC2086
+    cmd_layers set $chosen
+  fi
+}
+
+cmd_private() {
+  local dir url missing=0
+  while read -r dir url; do
+    if [ ! -e "$DOTFILES/$dir/.git" ]; then missing=1; fi
+  done < <(dot_private_repos)
+
+  info "Private layers"
+  if [ "$missing" = 0 ]; then
+    ok "All cloned"
+    return 0
+  fi
+
+  use_1password_agent
+  until github_ssh_ok; do
+    warn "Cannot authenticate to GitHub over SSH yet."
+    cat <<EOF
+    1. Open 1Password and sign in.
+    2. Settings > Developer > enable "Use the SSH agent".
+    3. Make sure your GitHub SSH key is stored in 1Password.
+EOF
+    open -a 1Password 2>/dev/null || true
+    interactive || return 1
+    ask "Retry?" || return 1
+    use_1password_agent
+  done
+
+  while read -r dir url <&3; do
+    if [ -e "$DOTFILES/$dir/.git" ]; then
+      ok "$dir already cloned"
+    elif [ -d "$DOTFILES/$dir" ] && [ -n "$(ls -A "$DOTFILES/$dir")" ]; then
+      warn "$dir exists and is not a git repository, skipping"
+    else
+      git clone "$url" "$DOTFILES/$dir"
+      ok "Cloned $dir"
+    fi
+  done 3< <(dot_private_repos)
+  cmd_hooks >/dev/null
+}
+
+cmd_hooks() {
+  local repo
+  info "Git hooks"
+  chmod +x "$DOTFILES"/hooks/*
+  for repo in $(all_repos); do
+    git -C "$repo" config core.hooksPath "$DOTFILES/hooks"
+    ok "$(repo_name "$repo")"
+  done
+}
+
+cmd_link() {
+  local dir src dest
+  info "Symlinks"
+  for dir in $(dot_layer_dirs); do
+    [ -f "$dir/links" ] || continue
+    while read -r src dest; do
+      case "$src" in '' | \#*) continue ;; esac
+      case "$dest" in "~/"*) dest="$HOME/${dest#\~/}" ;; esac
+      link_file "$dir/$src" "$dest"
+    done <"$dir/links"
+  done
+  link_mise_layers
+  write_gitconfig
+}
+
+# mise merges every file in conf.d, so each active layer's mise.toml is linked
+# there and links of layers that are no longer active are dropped.
+link_mise_layers() {
+  local dir name link confd="$HOME/.config/mise/conf.d"
+  if [ -d "$confd" ]; then
+    for link in "$confd"/*.toml; do
+      if [ -L "$link" ]; then
+        case "$(readlink "$link")" in "$DOTFILES"/*) rm "$link" ;; esac
+      fi
+    done
+  fi
+  for dir in $(dot_layer_dirs); do
+    if [ "$dir" != "$DOTFILES" ] && [ -f "$dir/mise.toml" ]; then
+      name="${dir#"$DOTFILES"/}"
+      mkdir -p "$confd"
+      ln -s "$dir/mise.toml" "$confd/$(echo "$name" | tr / -).toml"
+      ok "~/.config/mise/conf.d/$(echo "$name" | tr / -).toml -> $dir/mise.toml"
+    fi
+  done
+}
+
+mise_install() {
+  info "mise tools"
+  if ! has mise; then
+    warn "mise is not installed (dot brew install)"
+    return 0
+  fi
+  mise install --yes || warn "Some tools failed to install"
+  ok "$(mise ls --current 2>/dev/null | awk '{ printf "%s@%s ", $1, $2 }')"
+}
+
+link_file() {
+  local src="$1" dest="$2" backup
+  if [ ! -e "$src" ]; then
+    warn "Missing $src"
+    return 0
+  fi
+  if [ -L "$dest" ] && [ "$(readlink "$dest")" = "$src" ]; then
+    ok "${dest/#$HOME/~}"
+    return 0
+  fi
+  mkdir -p "$(dirname "$dest")"
+  if [ -e "$dest" ] || [ -L "$dest" ]; then
+    backup="$BACKUP_DIR${dest#"$HOME"}"
+    mkdir -p "$(dirname "$backup")"
+    mv "$dest" "$backup"
+    warn "Moved old ${dest/#$HOME/~} to ${backup/#$HOME/~}"
+  fi
+  ln -s "$src" "$dest"
+  ok "${dest/#$HOME/~} -> $src"
+}
+
+# ~/.gitconfig includes this file, so every active layer can add git settings
+# (for example an includeIf with a work identity for its folder).
+write_gitconfig() {
+  local dir out="$DOTFILES_CONFIG/gitconfig"
+  mkdir -p "$DOTFILES_CONFIG"
+  {
+    echo "# Generated by \`dot link\` from the active layers. Do not edit."
+    for dir in $(dot_layer_dirs); do
+      if [ "$dir" != "$DOTFILES" ] && [ -f "$dir/.gitconfig" ]; then
+        printf '[include]\n\tpath = %s\n' "$dir/.gitconfig"
+      fi
+    done
+  } >"$out"
+  ok "${out/#$HOME/~}"
+}
+
+cmd_layers() {
+  local layer file="$DOTFILES_CONFIG/layers"
+  case "${1:-list}" in
+    set)
+      shift
+      [ $# -gt 0 ] || die "Usage: dot layers set <layer>..."
+      for layer in "$@"; do
+        [ -d "$DOTFILES/$layer" ] || warn "$layer does not exist (yet)"
+      done
+      mkdir -p "$DOTFILES_CONFIG"
+      printf '%s\n' "$@" >"$file"
+      ok "Pinned layers in ${file/#$HOME/~}: $*"
+      ok "Run 'dot link' and open a new shell to apply"
+      ;;
+    auto)
+      rm -f "$file"
+      ok "Using every layer on disk"
+      ;;
+    list)
+      if [ -f "$file" ]; then
+        echo "Active layers (pinned in ${file/#$HOME/~}):"
+      else
+        echo "Active layers (auto, everything on disk):"
+      fi
+      echo "  . ${dim}(public)${reset}"
+      for layer in $(dot_layers); do
+        if [ -d "$DOTFILES/$layer" ]; then echo "  $layer"; else echo "  $layer ${red}(missing)${reset}"; fi
+      done
+      ;;
+    *) die "Usage: dot layers [list|set <layer>...|auto]" ;;
+  esac
+}
+
+cmd_new() {
+  local layer="${1:-}" dir parent
+  case "$layer" in
+    personal | work/?*) ;;
+    *) die "Usage: dot new <personal|work/name>" ;;
+  esac
+  dir="$DOTFILES/$layer"
+  parent="${layer%%/*}"
+  [ -e "$DOTFILES/$parent/.git" ] || die "$parent/ is not cloned. Run 'dot private' first."
+  [ -e "$dir/.exports" ] && die "$layer already exists"
+
+  mkdir -p "$dir/bin"
+  touch "$dir/bin/.gitkeep"
+  for file in exports path aliases functions; do
+    printf '#!/bin/bash\n#\n# %s for the %s layer.\n' "$file" "$layer" >"$dir/.$file"
+  done
+  cat >"$dir/Brewfile" <<EOF
+# Homebrew packages for the $layer layer. Installed by \`dot brew install\`.
+EOF
+  cat >"$dir/mise.toml" <<EOF
+# Tool versions for the $layer layer, merged into the global mise config by
+# \`dot link\`. Pin per project versions in each project's own mise.toml.
+#
+# [tools]
+# python = "3.12"
+EOF
+  cat >"$dir/.gitconfig" <<EOF
+# Git settings for the $layer layer, included from ~/.gitconfig by \`dot link\`.
+# Scope the identity to this environment's folder, paths are relative to here:
+#
+# [includeIf "gitdir:~/Developer/github/<org>/"]
+# 	path = identity.gitconfig
+EOF
+  cat >"$dir/.secrets" <<EOF
+# 1Password secret references for the $layer layer. Only references are
+# committed, never values. \`dot secrets\` resolves them into
+# ~/.config/dotfiles/secrets.env.
+#
+# export NPM_TOKEN='{{ op://vault/item/field }}'
+EOF
+  cat >"$dir/links" <<EOF
+# Symlinks for the $layer layer, created by \`dot link\`.
+#
+# <path in layer>   <target>
+EOF
+  ok "Created $layer"
+  if [ -f "$DOTFILES_CONFIG/layers" ] && ask "Enable $layer on this machine?"; then
+    echo "$layer" >>"$DOTFILES_CONFIG/layers"
+    ok "Enabled"
+  fi
+}
+
+#
+# Secrets
+#
+
+secret_files() {
+  local dir
+  for dir in $(dot_layer_dirs); do
+    if [ -f "$dir/.secrets" ]; then echo "$dir/.secrets"; fi
+  done
+}
+
+cmd_secrets() {
+  local tmp out="$DOTFILES_CONFIG/secrets.env" files
+  files="$(secret_files)"
+  info "Secrets"
+  if [ -z "$files" ]; then
+    ok "No .secrets files in the active layers"
+    return 0
+  fi
+  has op || die "1Password CLI is missing: brew install 1password-cli"
+
+  tmp="$(mktemp)"
+  # shellcheck disable=SC2086
+  cat $files >"$tmp"
+  mkdir -p "$DOTFILES_CONFIG"
+  if (umask 077 && op inject --force -i "$tmp" -o "$out" >/dev/null); then
+    chmod 600 "$out"
+    ok "Wrote ${out/#$HOME/~} ($(grep -c '^export ' "$out") variables)"
+    ok "Open a new shell or run: source ${out/#$HOME/~}"
+  else
+    rm -f "$tmp"
+    die "op inject failed. Is 1Password unlocked and the CLI integration on?"
+  fi
+  rm -f "$tmp"
+}
+
+#
+# Sync
+#
+
+cmd_status() {
+  local repo
+  for repo in $(all_repos); do
+    git -C "$repo" fetch --quiet 2>/dev/null || true
+    printf '%s%s%s %s%s%s\n' "$bold" "$(repo_name "$repo")" "$reset" "$dim" "$(git -C "$repo" status -sb | head -1)" "$reset"
+    git -C "$repo" status -s
+  done
+  if [ "$(all_repos | wc -l)" -le 1 ] && [ -n "$(dot_private_repos)" ]; then
+    warn "Private layers are not cloned. Run 'dot private'."
+  fi
+}
+
+cmd_pull() {
+  local repo
+  for repo in $(all_repos); do
+    info "Pull $(repo_name "$repo")"
+    if ! git -C "$repo" symbolic-ref -q HEAD >/dev/null; then
+      warn "Detached HEAD, skipping"
+      continue
+    fi
+    git -C "$repo" pull --rebase --autostash --quiet || warn "Pull failed, resolve it in $repo"
+    ok "$(git -C "$repo" log -1 --format='%h %s')"
+  done
+}
+
+# Commit (after confirmation) and push every repo with changes, privates first.
+cmd_push() {
+  local msg="${*:-}" repo name message upstream
+  for repo in $(all_repos); do
+    name="$(repo_name "$repo")"
+    if [ -n "$(git -C "$repo" status --porcelain)" ]; then
+      info "$name"
+      git -C "$repo" status -s
+      if [ "$repo" = "$DOTFILES" ]; then warn "This repository is PUBLIC."; fi
+      if ask "Commit all of these to $name?"; then
+        message="${msg:-$(prompt "Commit message:" "chore: update from $(hostname -s)")}"
+        git -C "$repo" add -A
+        if ! git -C "$repo" commit --quiet -m "$message"; then
+          git -C "$repo" reset --quiet
+          warn "Commit failed (see above), changes left unstaged"
+          continue
+        fi
+        ok "Committed: $message"
+      fi
+    fi
+
+    upstream="$(git -C "$repo" rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || true)"
+    if [ -z "$upstream" ]; then
+      git -C "$repo" symbolic-ref -q HEAD >/dev/null || continue
+      info "Push $name"
+      git -C "$repo" push --quiet -u origin HEAD
+      ok "Pushed new branch"
+      continue
+    fi
+    git -C "$repo" fetch --quiet || true
+    if [ "$(git -C "$repo" rev-list --count 'HEAD..@{u}')" -gt 0 ]; then
+      git -C "$repo" pull --rebase --autostash --quiet || {
+        warn "Rebase failed in $repo, fix it and run 'dot push' again"
+        continue
+      }
+    fi
+    if [ "$(git -C "$repo" rev-list --count '@{u}..HEAD')" -gt 0 ]; then
+      info "Push $name"
+      git -C "$repo" push --quiet
+      ok "Pushed to $upstream"
+    fi
+  done
+}
+
+cmd_sync() {
+  cmd_pull
+  cmd_push "$@"
+}
+
+cmd_update() {
+  cmd_pull
+  info "Homebrew"
+  load_brew || die "Homebrew is not installed"
+  brew update --quiet
+  brew upgrade
+  brew cleanup --quiet
+  if has mise; then
+    info "mise tools"
+    mise upgrade --yes || warn "Some tools failed to upgrade"
+  fi
+  if [ -x "$HOME/.oh-my-zsh/tools/upgrade.sh" ]; then
+    info "Oh My Zsh"
+    ZSH="$HOME/.oh-my-zsh" "$HOME/.oh-my-zsh/tools/upgrade.sh" || true
+  fi
+  brew_check
+}
+
+#
+# Homebrew
+#
+
+brewfiles() {
+  local dir
+  for dir in $(dot_layer_dirs); do
+    if [ -f "$dir/Brewfile" ]; then echo "$dir/Brewfile"; fi
+  done
+}
+
+# Concatenate the active Brewfiles into one temporary file and print its path.
+combined_brewfile() {
+  local tmp
+  tmp="$(mktemp -t dot-brewfile)"
+  # shellcheck disable=SC2046
+  cat $(brewfiles) >"$tmp"
+  echo "$tmp"
+}
+
+# Turn Brewfile lines (files or stdin) into "<type> <key> <name>", where the key
+# drops any tap prefix so 'foo' and 'user/tap/foo' compare equal.
+brew_entries() {
+  sed -nE "s/^[[:space:]]*(tap|brew|cask)[[:space:]]+['\"]([^'\"]+)['\"].*/\1 \2/p" "$@" |
+    awk '{ key = $2; if ($1 != "tap") sub(/.*\//, "", key); print $1, key, $2 }' |
+    sort -u -k1,2
+}
+
+# Installed formulae, casks and taps that no active Brewfile mentions.
+brew_untracked() {
+  local tracked
+  tracked="$(mktemp)"
+  # shellcheck disable=SC2046
+  brew_entries $(brewfiles) >"$tracked"
+  brew bundle dump --quiet --file=- 2>/dev/null | brew_entries |
+    awk 'NR == FNR { seen[$1 " " $2] = 1; next } !(($1 " " $2) in seen)' "$tracked" -
+  rm -f "$tracked"
+}
+
+brew_install() {
+  local file
+  info "Homebrew bundle"
+  load_brew || die "Homebrew is not installed"
+  file="$(combined_brewfile)"
+  brew bundle install --file="$file" || warn "Some packages failed to install"
+  rm -f "$file"
+}
+
+brew_check() {
+  local file missing untracked
+  info "Brewfiles"
+  load_brew || die "Homebrew is not installed"
+  file="$(combined_brewfile)"
+  missing="$(brew bundle check --file="$file" --verbose --no-upgrade 2>&1 | grep '→' || true)"
+  if [ -z "$missing" ]; then
+    ok "Everything in the Brewfiles is installed"
+  else
+    echo "$missing" | sed 's/^/    /'
+    warn "Run 'dot brew install' to install what is missing"
+  fi
+  rm -f "$file"
+  untracked="$(brew_untracked)"
+  if [ -z "$untracked" ]; then
+    ok "Every installed package is in a Brewfile"
+  else
+    warn "Installed but not in any Brewfile:"
+    echo "$untracked" | awk '{ printf "    %-5s %s\n", $1, $3 }'
+    warn "Run 'dot brew sync' to file or uninstall them"
+  fi
+}
+
+# Print a numbered menu of the layers a package can be filed under.
+brew_targets() {
+  local dir i=1
+  for dir in $(dot_layer_dirs); do
+    if [ "$dir" = "$DOTFILES" ]; then
+      printf '    %s%d%s) %s\n' "$bold" "$i" "$reset" ". (public, every machine)" >/dev/tty
+    else
+      printf '    %s%d%s) %s\n' "$bold" "$i" "$reset" "${dir#"$DOTFILES"/}" >/dev/tty
+    fi
+    i=$((i + 1))
+  done
+}
+
+layer_dir() {
+  case "${1:-.}" in
+    . | public | "") echo "$DOTFILES" ;;
+    *) echo "$DOTFILES/$1" ;;
+  esac
+}
+
+brewfile_append() {
+  local file="$1/Brewfile" type="$2" name="$3"
+  if [ ! -f "$file" ]; then
+    echo "# Homebrew packages for the ${1#"$DOTFILES"/} layer." >"$file"
+  elif [ -n "$(tail -c1 "$file")" ]; then
+    echo >>"$file"
+  fi
+  printf "%s '%s'\n" "$type" "$name" >>"$file"
+  ok "Added $type '$name' to ${file#"$DOTFILES"/}"
+}
+
+brew_uninstall() {
+  case "$1" in
+    tap) brew untap "$2" ;;
+    cask) brew uninstall --cask "$2" ;;
+    *) brew uninstall "$2" ;;
+  esac
+}
+
+brew_sync() {
+  local untracked type key name choice dirs
+  load_brew || die "Homebrew is not installed"
+  untracked="$(brew_untracked)"
+  if [ -z "$untracked" ]; then
+    ok "Every installed package is in a Brewfile"
+    return 0
+  fi
+  interactive || die "dot brew sync needs a terminal"
+  dirs="$(dot_layer_dirs)"
+  info "File each untracked package"
+  brew_targets
+  while read -r type key name <&3; do
+    choice="$(prompt "$type $name: layer number, (u)ninstall, (s)kip, (q)uit" s)"
+    case "$choice" in
+      q*) break ;;
+      u*) brew_uninstall "$type" "$name" ;;
+      [0-9]*) brewfile_append "$(echo "$dirs" | sed -n "${choice}p")" "$type" "$name" ;;
+      *) ;;
+    esac
+  done 3<<<"$untracked"
+}
+
+brew_add() {
+  local type=brew layer=. names=() name dir
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --cask) type=cask ;;
+      --tap) type=tap ;;
+      --to) layer="$2"; shift ;;
+      -*) die "Unknown option $1" ;;
+      *) names+=("$1") ;;
+    esac
+    shift
+  done
+  [ ${#names[@]} -gt 0 ] || die "Usage: dot brew add [--cask|--tap] [--to <layer>] <name>..."
+  dir="$(layer_dir "$layer")"
+  [ -d "$dir" ] || die "Layer $layer does not exist"
+  load_brew || die "Homebrew is not installed"
+
+  case "$type" in
+    tap) for name in "${names[@]}"; do brew tap "$name"; done ;;
+    cask) brew install --cask "${names[@]}" ;;
+    *) brew install "${names[@]}" ;;
+  esac
+  for name in "${names[@]}"; do
+    if [ -f "$dir/Brewfile" ] && brew_entries "$dir/Brewfile" | awk -v t="$type" -v n="$name" '$1 == t && ($2 == n || $3 == n) { f = 1 } END { exit !f }'; then
+      ok "$name is already in ${dir#"$DOTFILES"/}/Brewfile"
+    else
+      brewfile_append "$dir" "$type" "$name"
+    fi
+  done
+}
+
+brew_rm() {
+  local name file pattern found
+  [ $# -gt 0 ] || die "Usage: dot brew rm <name>..."
+  load_brew || die "Homebrew is not installed"
+  for name in "$@"; do
+    pattern="$(printf '%s' "$name" | sed 's/[][\.*^$+?(){}|/]/\\&/g')"
+    pattern="^[[:space:]]*(tap|brew|cask)[[:space:]]+['\"]([^'\"]*/)?$pattern['\"]"
+    found=0
+    for file in $(brewfiles); do
+      if grep -Eq "$pattern" "$file"; then
+        sed -i '' -E "\#$pattern#d" "$file"
+        ok "Removed $name from ${file#"$DOTFILES"/}"
+        found=1
+      fi
+    done
+    [ "$found" = 1 ] || warn "$name is not in any active Brewfile"
+    if ask "Uninstall $name?"; then brew uninstall "$name" || true; fi
+  done
+}
+
+brew_cleanup() {
+  local untracked
+  load_brew || die "Homebrew is not installed"
+  untracked="$(brew_untracked)"
+  if [ -z "$untracked" ]; then
+    ok "Nothing to clean up"
+    return 0
+  fi
+  warn "These are installed but not in any active Brewfile:"
+  echo "$untracked" | awk '{ printf "    %-5s %s\n", $1, $3 }'
+  ask "Uninstall all of them?" n || return 0
+  echo "$untracked" | while read -r type key name; do brew_uninstall "$type" "$name" || true; done
+}
+
+cmd_brew() {
+  local sub="${1:-check}"
+  [ $# -gt 0 ] && shift
+  case "$sub" in
+    check | status) brew_check ;;
+    install | i) brew_install ;;
+    sync) brew_sync ;;
+    add) brew_add "$@" ;;
+    rm | remove) brew_rm "$@" ;;
+    cleanup) brew_cleanup ;;
+    upgrade | up)
+      load_brew || die "Homebrew is not installed"
+      brew update --quiet && brew upgrade && brew cleanup --quiet
+      brew_check
+      ;;
+    edit) "${EDITOR:-vi}" "$(layer_dir "${1:-.}")/Brewfile" ;;
+    list | ls) brewfiles ;;
+    *) die "Unknown 'dot brew $sub'. See 'dot help'." ;;
+  esac
+}
+
+#
+# Health
+#
+
+cmd_doctor() {
+  local repo dir url src dest line problems=0
+
+  fail() {
+    warn "$*"
+    problems=$((problems + 1))
+  }
+
+  info "Tools"
+  load_brew || true
+  for tool in brew git op gitleaks mise zsh; do
+    if has "$tool"; then ok "$tool"; else fail "$tool is not installed"; fi
+  done
+  if [ -d "$HOME/.oh-my-zsh" ]; then ok "oh-my-zsh"; else fail "oh-my-zsh is not installed"; fi
+
+  info "Repositories"
+  while read -r dir url; do
+    if [ -e "$DOTFILES/$dir/.git" ]; then ok "$dir cloned"; else fail "$dir is not cloned (dot private)"; fi
+  done < <(dot_private_repos)
+  for repo in $(all_repos); do
+    if [ "$(git -C "$repo" config core.hooksPath || true)" = "$DOTFILES/hooks" ]; then
+      ok "Secret scanning hook on $(repo_name "$repo")"
+    else
+      fail "No secret scanning hook on $(repo_name "$repo") (dot hooks)"
+    fi
+  done
+  use_1password_agent
+  if github_ssh_ok; then ok "GitHub SSH"; else fail "GitHub SSH authentication failed"; fi
+
+  info "Symlinks"
+  for dir in $(dot_layer_dirs); do
+    [ -f "$dir/links" ] || continue
+    while read -r src dest; do
+      case "$src" in '' | \#*) continue ;; esac
+      case "$dest" in "~/"*) dest="$HOME/${dest#\~/}" ;; esac
+      if [ "$(readlink "$dest" 2>/dev/null || true)" = "$dir/$src" ]; then
+        ok "${dest/#$HOME/~}"
+      else
+        fail "${dest/#$HOME/~} is not linked (dot link)"
+      fi
+    done <"$dir/links"
+  done
+
+  info "Secrets"
+  line="$DOTFILES_CONFIG/secrets.env"
+  if [ -z "$(secret_files)" ]; then
+    ok "No secrets configured"
+  elif [ -f "$line" ]; then
+    ok "${line/#$HOME/~} updated $(stat -f '%Sm' -t '%Y-%m-%d' "$line")"
+  else
+    fail "Secrets not loaded (dot secrets)"
+  fi
+
+  if has brew; then brew_check; fi
+
+  echo
+  if [ "$problems" = 0 ]; then ok "All good"; else die "$problems problem(s) found"; fi
+}
+
+cmd_help() {
+  cat <<EOF
+${bold}dot${reset}: manage dotfiles at ${DOTFILES/#$HOME/~}
+
+${bold}Setup${reset}
+  install            Set up this machine from scratch (safe to re-run)
+  private            Clone the private personal/work layers (via 1Password SSH)
+  link               Symlink dotfiles of the active layers into \$HOME
+  hooks              Install the secret scanning git hook in every repo
+  layers [set|auto]  Show or pin the layers this machine uses
+  new <layer>        Scaffold a layer, e.g. dot new work/acme
+  secrets            Load .secrets references from 1Password
+  doctor             Check that everything is in place
+
+${bold}Sync${reset}
+  status             Changes across the public and private repos
+  pull               Pull every repo
+  push [message]     Commit (after confirmation) and push every repo
+  sync [message]     pull, then push
+  update             pull, upgrade Homebrew, mise tools and Oh My Zsh
+
+${bold}Homebrew${reset} (across the Brewfiles of the active layers)
+  brew [check]                 Missing packages and installed ones not in a Brewfile
+  brew install                 Install everything from the Brewfiles
+  brew add [--cask] [--to L] X Install X and add it to layer L's Brewfile
+  brew rm X                    Remove X from the Brewfiles and uninstall it
+  brew sync                    File each untracked package under a layer
+  brew cleanup                 Uninstall packages that are in no Brewfile
+  brew upgrade                 brew update + upgrade + cleanup
+  brew edit [layer]            Open a layer's Brewfile
+
+Pass -y/--yes before the command to accept every default.
+EOF
+}
+
+main() {
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      -y | --yes) ASSUME_YES=1 ;;
+      *) break ;;
+    esac
+    shift
+  done
+  local cmd="${1:-help}"
+  [ $# -gt 0 ] && shift
+  case "$cmd" in
+    install) cmd_install "$@" ;;
+    private) cmd_private "$@" ;;
+    link) cmd_link "$@" ;;
+    hooks) cmd_hooks "$@" ;;
+    layers) cmd_layers "$@" ;;
+    new) cmd_new "$@" ;;
+    secrets) cmd_secrets "$@" ;;
+    doctor) cmd_doctor "$@" ;;
+    status | st) cmd_status "$@" ;;
+    pull) cmd_pull "$@" ;;
+    push) cmd_push "$@" ;;
+    sync) cmd_sync "$@" ;;
+    update) cmd_update "$@" ;;
+    brew) cmd_brew "$@" ;;
+    help | -h | --help) cmd_help ;;
+    *) die "Unknown command '$cmd'. See 'dot help'." ;;
+  esac
+}
+
+main "$@"

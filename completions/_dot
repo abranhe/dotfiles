@@ -1,0 +1,64 @@
+#compdef dot
+
+_dot_layers() {
+  local -a layers
+  layers=(personal ${(f)"$(cd "$DOTFILES" 2>/dev/null && print -l work/*(N/))"})
+  _describe 'layer' layers
+}
+
+_dot() {
+  local -a commands brew_commands
+  commands=(
+    'install:set up this machine from scratch'
+    'private:clone the private personal/work layers'
+    'link:symlink dotfiles into $HOME'
+    'hooks:install the secret scanning git hook'
+    'layers:show or pin the layers this machine uses'
+    'new:scaffold a layer'
+    'secrets:load .secrets references from 1Password'
+    'doctor:check that everything is in place'
+    'status:changes across all repos'
+    'pull:pull every repo'
+    'push:commit and push every repo'
+    'sync:pull, then push'
+    'update:pull and upgrade everything'
+    'brew:manage the Brewfiles'
+    'help:show help'
+  )
+  brew_commands=(
+    'check:missing and untracked packages'
+    'install:install everything from the Brewfiles'
+    'add:install a package and add it to a Brewfile'
+    'rm:remove a package from the Brewfiles and uninstall it'
+    'sync:file untracked packages under a layer'
+    'cleanup:uninstall packages in no Brewfile'
+    'upgrade:update, upgrade and cleanup'
+    'edit:open a Brewfile'
+    'list:list the active Brewfiles'
+  )
+
+  if (( CURRENT == 2 )); then
+    _describe 'command' commands
+    return
+  fi
+
+  case "$words[2]" in
+    brew)
+      if (( CURRENT == 3 )); then
+        _describe 'brew command' brew_commands
+      elif [[ "$words[3]" == edit || "$words[CURRENT-1]" == --to ]]; then
+        _dot_layers
+      fi
+      ;;
+    layers)
+      if (( CURRENT == 3 )); then
+        _values 'action' list set auto
+      else
+        _dot_layers
+      fi
+      ;;
+    new) _values 'layer' personal work/ ;;
+  esac
+}
+
+_dot "$@"

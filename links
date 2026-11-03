@@ -1,0 +1,8 @@
+# Symlinks created by `dot link`. Any layer can ship its own `links` file.
+#
+# <path in layer>   <target>
+.zshrc              ~/.zshrc
+.gitconfig          ~/.gitconfig
+.gitignore_global   ~/.gitignore
+.vimrc              ~/.config/nvim/init.vim
+mise.toml           ~/.config/mise/config.toml

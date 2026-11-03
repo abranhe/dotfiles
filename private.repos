@@ -1,0 +1,6 @@
+# Private layers cloned into this repo by `dot private`. They are ignored by
+# this (public) repo and versioned on their own.
+#
+# <directory>  <git url>
+personal  git@github.com:abranhe/dotfiles-personal.git
+work      git@github.com:abranhe/dotfiles-work.git

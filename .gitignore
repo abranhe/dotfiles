@@ -1,36 +1,10 @@
-# Mac
+# Private layers are separate repositories, see private.repos.
+/personal/
+/work/
+
 .DS_Store
-
-# VSCode
-.vscode/
-
-# JetBrain
-.idea/
-
-# npm
-npm-debug.log
-
-# yarn
-yarn-error.log
-
-# vim
 *.swp
-
-# git
-*.patch
-
-# Extra
-*~
-*.wip.*
-*.bak.*
-*.tmp.*
-.history
-tmp/
-
-# Draw.io
-*.drawio.*
-
-.git_*
-
-# Prompting Rules
-.prompting
+.env
+.env.*
+!.env.example
+secrets.env

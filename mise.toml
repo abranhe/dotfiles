@@ -1,0 +1,18 @@
+# Global tool versions, linked to ~/.config/mise/config.toml by `dot link`.
+# Layers add their own with a mise.toml, linked into ~/.config/mise/conf.d/.
+# Projects pin theirs with a mise.toml (or .nvmrc, .python-version, ...).
+#
+# https://mise.jdx.dev/configuration.html
+
+[tools]
+node = "22"
+pnpm = "latest"
+# python = "3.13"
+# go = "latest"
+# rust = "stable"
+
+[settings]
+# Respect version files other tools use, like .nvmrc and .python-version.
+idiomatic_version_file_enable_tools = ["node", "python", "ruby", "go"]
+# Install missing tools when a command needs them.
+not_found_auto_install = true
