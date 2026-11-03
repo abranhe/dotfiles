@@ -8,3 +8,5 @@
 .env.*
 !.env.example
 secrets.env
+
+__pycache__
