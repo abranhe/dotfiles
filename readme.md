@@ -41,6 +41,7 @@ Each layer can have any of:
 | `bin/`                                  | Added to `PATH`                                |
 | `Brewfile`                              | Packages for that layer                        |
 | `mise.toml`                             | Tool versions, linked into `~/.config/mise/conf.d/` |
+| `claude/{skills,agents,commands}/`      | Claude Code skills, agents and commands, each linked into `~/.claude/` |
 | `links`                                 | Symlinks into `$HOME` (`<file> <target>`)       |
 | `.gitconfig`                            | Included from `~/.gitconfig`, e.g. an `includeIf` identity per folder |
 | `.secrets`                              | 1Password references, see below                |

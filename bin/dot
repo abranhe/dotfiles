@@ -212,7 +212,41 @@ cmd_link() {
     done <"$dir/links"
   done
   link_mise_layers
+  link_claude
   write_gitconfig
+}
+
+# Claude Code skills, agents and commands of each active layer, from
+# <layer>/claude/{skills,agents,commands}/, are linked one by one into
+# ~/.claude/. Entries not linked from this repo (plugins, `npx skills`, synced
+# skills) are left alone; links of inactive layers are dropped.
+link_claude() {
+  local kind dir src dest name
+  for kind in skills agents commands; do
+    if [ -d "$HOME/.claude/$kind" ]; then
+      for dest in "$HOME/.claude/$kind"/*; do
+        if [ -L "$dest" ]; then
+          case "$(readlink "$dest")" in "$DOTFILES"/*) rm "$dest" ;; esac
+        fi
+      done
+    fi
+    for dir in $(dot_layer_dirs); do
+      for src in "$dir/claude/$kind"/*; do
+        [ -e "$src" ] || continue
+        name="$(basename "$src")"
+        dest="$HOME/.claude/$kind/$name"
+        if [ -L "$dest" ]; then
+          case "$(readlink "$dest")" in
+            "$DOTFILES"/*)
+              warn "Claude $kind/$name from ${dir#"$DOTFILES"/} overrides an earlier layer"
+              rm "$dest"
+              ;;
+          esac
+        fi
+        link_file "$src" "$dest"
+      done
+    done
+  done
 }
 
 # mise merges every file in conf.d, so each active layer's mise.toml is linked

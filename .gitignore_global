@@ -35,3 +35,7 @@ tmp/
 # Prompting Rules
 .prompting
 **/.claude/settings.local.json
+
+# Python
+__pycache__/
+*.pyc

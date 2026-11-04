@@ -38,6 +38,7 @@ Every layer may have any of these files, all optional:
 - `bin/`
 - `Brewfile`, `mise.toml`
 - `links`, `.gitconfig`, `.secrets`
+- `claude/skills/<name>/`, `claude/agents/<name>.md`, `claude/commands/<name>.md`
 
 Adding a new layer file type means updating all of these:
 - `lib/layers.sh` or `.zshrc`, to load it
@@ -57,6 +58,11 @@ Machine-local state lives outside the repo:
 - Language runtimes and dev CLIs go in a `mise.toml`, not Homebrew. Don't
   reintroduce nvm, volta or similar.
 - `1password-cli` is a cask, not a formula.
+- A Claude Code skill goes in `<layer>/claude/skills/<name>/`, never directly in
+  `~/.claude/skills/`. Use the root only for generic skills, since this repo is public;
+  anything about an employer or private systems goes in its work layer.
+  `dot link` links each item into `~/.claude/`. It removes links of inactive layers
+  and leaves other entries alone (plugins, `npx skills` links, `synced/`).
 - Aliases, functions and env vars go in the matching dotfile of the right
   layer. Don't add them to `.zshrc` directly.
 - When an installer appends to `~/.zshrc`, it edits this repo through the
