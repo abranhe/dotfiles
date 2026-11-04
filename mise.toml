@@ -8,6 +8,7 @@
 node = "22"
 pnpm = "latest"
 "npm:openup" = "latest"
+"npm:aicommits" = "latest"
 # python = "3.13"
 # go = "latest"
 # rust = "stable"
