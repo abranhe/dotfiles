@@ -19,6 +19,7 @@ _dot() {
     'new:scaffold a layer'
     'secrets:load .secrets references from 1Password'
     'doctor:check that everything is in place'
+    'open:open the dotfiles or a layer in VS Code'
     'status:changes across all repos'
     'pull:pull every repo'
     'push:commit and push every repo'
@@ -70,6 +71,7 @@ _dot() {
       fi
       ;;
     new) _values 'layer' personal work/ ;;
+    open) (( CURRENT == 3 )) && _dot_layers ;;
   esac
 }
 

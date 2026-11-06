@@ -113,6 +113,7 @@ dot pull              # pull all repos
 dot push "message"    # commit (after confirmation) and push all repos
 dot sync              # pull + push
 dot update            # pull, upgrade Homebrew and Oh My Zsh
+dot open              # open the dotfiles in VS Code (dot open personal for a layer)
 
 dot brew              # missing packages, and installed ones in no Brewfile
 dot brew add --cask --to personal spotify

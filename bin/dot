@@ -882,6 +882,17 @@ cmd_status() {
   fi
 }
 
+cmd_open() {
+  local dir
+  dir="$(layer_dir "${1:-.}")"
+  [ -d "$dir" ] || die "No layer at ${dir/#$HOME/~}"
+  if command -v code >/dev/null 2>&1; then
+    code "$dir"
+  else
+    open -a "Visual Studio Code" "$dir"
+  fi
+}
+
 cmd_pull() {
   local repo
   for repo in $(all_repos); do
@@ -1354,6 +1365,7 @@ ${bold}Setup${reset}
   new <layer>        Scaffold a layer, e.g. dot new work/acme
   secrets            Load .secrets references from 1Password
   doctor             Check that everything is in place
+  open [layer]       Open the dotfiles, or a layer, in VS Code
 
 ${bold}Sync${reset}
   status             Changes across the public and private repos
@@ -1403,6 +1415,7 @@ main() {
     new) cmd_new "$@" ;;
     secrets) cmd_secrets "$@" ;;
     doctor) cmd_doctor "$@" ;;
+    open) cmd_open "$@" ;;
     status | st) cmd_status "$@" ;;
     pull) cmd_pull "$@" ;;
     push) cmd_push "$@" ;;
