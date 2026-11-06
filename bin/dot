@@ -35,8 +35,9 @@ die() {
 }
 has() { command -v "$1" >/dev/null 2>&1; }
 
-# Prompts read from the terminal so they also work under `curl | bash`.
-interactive() { [ "$ASSUME_YES" != 1 ] && [ -r /dev/tty ]; }
+# Prompts read from the terminal so they also work under `curl | bash`. Opening
+# /dev/tty, not just testing it, catches CI and other runs with no terminal.
+interactive() { [ "$ASSUME_YES" != 1 ] && (: </dev/tty) 2>/dev/null; }
 
 # ask "question" [y|n]: yes/no question, the second argument is the default.
 ask() {
@@ -71,16 +72,32 @@ repo_name() {
   if [ "$1" = "$DOTFILES" ]; then echo "dotfiles (public)"; else echo "${1#"$DOTFILES"/} (private)"; fi
 }
 
+# Apple Silicon hardware, also when this process runs under Rosetta, where
+# `uname -m` says x86_64. DOT_ARCH=arm64|x86_64 pretends otherwise, for tests.
+is_apple_silicon() {
+  case "${DOT_ARCH:-}" in
+    arm64) return 0 ;;
+    x86_64) return 1 ;;
+  esac
+  [ "$(sysctl -n hw.optional.arm64 2>/dev/null || true)" = 1 ]
+}
+
+# True when this process is an Intel binary translated by Rosetta.
+under_rosetta() {
+  [ "$(sysctl -n sysctl.proc_translated 2>/dev/null || true)" = 1 ]
+}
+
+# Where Homebrew belongs on this hardware. An Intel Homebrew left in /usr/local
+# on an Apple Silicon Mac (by Migration Assistant) is ignored.
+brew_prefix() {
+  if is_apple_silicon; then echo /opt/homebrew; else echo /usr/local; fi
+}
+
 load_brew() {
   local brew
-  has brew && return 0
-  for brew in /opt/homebrew/bin/brew /usr/local/bin/brew; do
-    if [ -x "$brew" ]; then
-      eval "$("$brew" shellenv)"
-      return 0
-    fi
-  done
-  return 1
+  brew="$(brew_prefix)/bin/brew"
+  [ -x "$brew" ] || return 1
+  if [ "$(command -v brew || true)" != "$brew" ]; then eval "$("$brew" shellenv)"; fi
 }
 
 use_1password_agent() {
@@ -99,6 +116,12 @@ github_ssh_ok() {
 
 cmd_install() {
   [ "$(uname -s)" = Darwin ] || die "Only macOS is supported."
+
+  adopt_scan
+  if [ "$ADOPT_FOUND" = 1 ]; then
+    ask "Continue? Replaced files go to ${BACKUP_DIR/#$HOME/~} and 'dot restore' puts them back." ||
+      die "Nothing changed."
+  fi
 
   info "Homebrew"
   if ! load_brew; then
@@ -128,6 +151,11 @@ cmd_install() {
   cmd_hooks
   cmd_link
   brew_install
+  if [ "$ADOPT_FOUND" = 1 ] && interactive && [ -n "$(brew_untracked)" ] &&
+    ask "File the installed packages that are in no Brewfile now?"; then
+    brew_sync
+  fi
+  adopt_version_managers
   mise_install
   if has op && [ -n "$(secret_files)" ] && ask "Load secrets from 1Password now?"; then
     cmd_secrets || warn "Could not load secrets. Run 'dot secrets' later."
@@ -201,52 +229,68 @@ cmd_hooks() {
 }
 
 cmd_link() {
-  local dir src dest
   info "Symlinks"
-  for dir in $(dot_layer_dirs); do
-    [ -f "$dir/links" ] || continue
-    while read -r src dest; do
-      case "$src" in '' | \#*) continue ;; esac
-      case "$dest" in "~/"*) dest="$HOME/${dest#\~/}" ;; esac
-      link_file "$dir/$src" "$dest"
-    done <"$dir/links"
-  done
+  each_link link_file
   link_mise_layers
   link_claude
   write_gitconfig
+  adopt_migrate
 }
 
-# Claude Code skills, agents and commands of each active layer, from
-# <layer>/claude/{skills,agents,commands}/, are linked one by one into
-# ~/.claude/. Entries not linked from this repo (plugins, `npx skills`, synced
-# skills) are left alone; links of inactive layers are dropped.
-link_claude() {
-  local kind dir src dest name
+# Call "$1 <source> <target>" for every entry of the active layers' links files.
+each_link() {
+  local fn="$1" dir src dest
+  for dir in $(dot_layer_dirs); do
+    [ -f "$dir/links" ] || continue
+    while read -r src dest <&3; do
+      case "$src" in '' | \#*) continue ;; esac
+      case "$dest" in "~/"*) dest="$HOME/${dest#\~/}" ;; esac
+      "$fn" "$dir/$src" "$dest"
+    done 3<"$dir/links"
+  done
+}
+
+# Call "$1 <source> <target>" for every Claude Code skill, agent and command of
+# the active layers, from <layer>/claude/{skills,agents,commands}/.
+each_claude_item() {
+  local fn="$1" kind dir src
   for kind in skills agents commands; do
-    if [ -d "$HOME/.claude/$kind" ]; then
-      for dest in "$HOME/.claude/$kind"/*; do
-        if [ -L "$dest" ]; then
-          case "$(readlink "$dest")" in "$DOTFILES"/*) rm "$dest" ;; esac
-        fi
-      done
-    fi
     for dir in $(dot_layer_dirs); do
       for src in "$dir/claude/$kind"/*; do
         [ -e "$src" ] || continue
-        name="$(basename "$src")"
-        dest="$HOME/.claude/$kind/$name"
-        if [ -L "$dest" ]; then
-          case "$(readlink "$dest")" in
-            "$DOTFILES"/*)
-              warn "Claude $kind/$name from ${dir#"$DOTFILES"/} overrides an earlier layer"
-              rm "$dest"
-              ;;
-          esac
-        fi
-        link_file "$src" "$dest"
+        "$fn" "$src" "$HOME/.claude/$kind/$(basename "$src")"
       done
     done
   done
+}
+
+# Each Claude Code item is linked one by one into ~/.claude/. Entries not linked
+# from this repo (plugins, `npx skills`, synced skills) are left alone; links of
+# inactive layers are dropped.
+link_claude() {
+  local kind dest
+  for kind in skills agents commands; do
+    [ -d "$HOME/.claude/$kind" ] || continue
+    for dest in "$HOME/.claude/$kind"/*; do
+      if [ -L "$dest" ]; then
+        case "$(readlink "$dest")" in "$DOTFILES"/*) rm "$dest" ;; esac
+      fi
+    done
+  done
+  each_claude_item link_claude_item
+}
+
+link_claude_item() {
+  local src="$1" dest="$2"
+  if [ -L "$dest" ]; then
+    case "$(readlink "$dest")" in
+      "$DOTFILES"/*)
+        warn "Claude ${dest#"$HOME"/.claude/} from ${src#"$DOTFILES"/} overrides an earlier layer"
+        rm "$dest"
+        ;;
+    esac
+  fi
+  link_file "$src" "$dest"
 }
 
 # mise merges every file in conf.d, so each active layer's mise.toml is linked
@@ -295,6 +339,8 @@ link_file() {
     backup="$BACKUP_DIR${dest#"$HOME"}"
     mkdir -p "$(dirname "$backup")"
     mv "$dest" "$backup"
+    # Read by adopt_migrate and `dot restore`.
+    printf '%s\t%s\n' "$dest" "$backup" >>"$BACKUP_DIR/manifest"
     warn "Moved old ${dest/#$HOME/~} to ${backup/#$HOME/~}"
   fi
   ln -s "$src" "$dest"
@@ -315,6 +361,388 @@ write_gitconfig() {
     done
   } >"$out"
   ok "${out/#$HOME/~}"
+}
+
+#
+# Existing machines
+#
+# `dot install` also works on a Mac that is already set up: it first reports
+# what it would replace, every replaced file is backed up with a manifest, what
+# the old files had that these dotfiles lack is moved to machine-local files
+# (never into a repo), and `dot restore` undoes it.
+
+ADOPT_FOUND=0
+MISE_LOCAL="$HOME/.config/mise/conf.d/local.toml"
+GITCONFIG_LOCAL="$DOTFILES_CONFIG/local.gitconfig"
+ZSHRC_LOCAL="$HOME/.zshrc.local"
+# Shell setup of the version managers mise replaces, dropped when migrating.
+VM_SHELL_PATTERN='NVM_DIR|nvm\.sh|VOLTA_HOME|\.volta/|asdf\.sh|asdf/shims|pyenv init|rbenv init|nodenv init'
+
+cmd_adopt() {
+  case "${1:-}" in
+    -n | --dry-run) adopt_scan ;;
+    "") cmd_install ;;
+    *) die "Usage: dot adopt [--dry-run]" ;;
+  esac
+}
+
+adopt_item() {
+  ADOPT_FOUND=1
+  printf '    %-34s %s\n' "$1" "$2"
+}
+
+# Report what installing would replace or clash with. Changes nothing.
+adopt_scan() {
+  local tool file pkg count=0 untracked
+  ADOPT_FOUND=0
+  info "Existing configuration"
+  each_link scan_target
+  each_claude_item scan_target
+
+  for tool in $(version_managers); do
+    adopt_item "~/.$tool" "version manager, mise replaces it"
+  done
+
+  if is_apple_silicon; then
+    if [ -x /usr/local/bin/brew ]; then
+      adopt_item /usr/local/bin/brew "Intel Homebrew, this Mac uses /opt/homebrew"
+    fi
+  else
+    for file in $(unbrewed_executables); do
+      count=$((count + 1))
+      [ "$count" -le 15 ] || continue
+      pkg="$(pkgutil --file-info "$file" 2>/dev/null | awk '/^pkgid: / { print $2 }' || true)"
+      adopt_item "$file" "not from Homebrew${pkg:+ (pkg $pkg)}"
+    done
+    if [ "$count" -gt 15 ]; then echo "    ... and $((count - 15)) more in /usr/local/bin"; fi
+    if [ "$count" -gt 0 ]; then
+      warn "Homebrew cannot link over files it does not own in /usr/local/bin."
+      warn "If 'dot brew install' reports a conflict, remove the old one, e.g. sudo pkgutil --forget <pkg>."
+    fi
+  fi
+
+  if load_brew; then
+    untracked="$(brew_untracked | wc -l | tr -d ' ')"
+    if [ "$untracked" -gt 0 ]; then
+      adopt_item "Homebrew" "$untracked installed package(s) in no Brewfile"
+    fi
+  fi
+
+  if [ "$ADOPT_FOUND" = 0 ]; then ok "Nothing to replace"; fi
+}
+
+# Called with "<source> <target>" by each_link and each_claude_item.
+scan_target() {
+  local dest="$2" target
+  if [ -L "$dest" ]; then
+    target="$(readlink "$dest")"
+    case "$target" in "$DOTFILES"/*) return 0 ;; esac
+    adopt_item "${dest/#$HOME/~}" "replaced, links to ${target/#$HOME/~}"
+  elif [ -d "$dest" ]; then
+    adopt_item "${dest/#$HOME/~}" "folder replaced"
+  elif [ -e "$dest" ]; then
+    adopt_item "${dest/#$HOME/~}" "file replaced"
+  fi
+}
+
+# Version managers that mise replaces, found in $HOME.
+version_managers() {
+  local tool
+  for tool in nvm volta asdf pyenv rbenv nodenv; do
+    if [ -d "$HOME/.$tool" ]; then echo "$tool"; fi
+  done
+}
+
+# Print "<mise tool> <version>" for the default version(s) a version manager has.
+vm_versions() {
+  local version tool
+  case "$1" in
+    nvm)
+      version="$(cat "$HOME/.nvm/alias/default" 2>/dev/null || true)"
+      case "$version" in
+        lts/* | lts) echo "node lts" ;;
+        node | stable) echo "node latest" ;;
+        v[0-9]* | [0-9]*) echo "node ${version#v}" ;;
+      esac
+      ;;
+    volta)
+      version="$(sed -nE 's/.*"runtime"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' \
+        "$HOME/.volta/tools/user/platform.json" 2>/dev/null | awk 'NR == 1' || true)"
+      if [ -n "$version" ]; then echo "node $version"; fi
+      ;;
+    pyenv | rbenv | nodenv)
+      version="$(awk 'NR == 1 { print $1 }' "$HOME/.$1/version" 2>/dev/null || true)"
+      case "$1" in pyenv) tool=python ;; rbenv) tool=ruby ;; *) tool=node ;; esac
+      case "$version" in '' | system) ;; *) echo "$tool $version" ;; esac
+      ;;
+    asdf)
+      awk '$1 !~ /^#/ && NF >= 2 && $2 != "system" {
+        tool = $1; if (tool == "nodejs") tool = "node"; if (tool == "golang") tool = "go"
+        print tool, $2 }' "$HOME/.tool-versions" 2>/dev/null || true
+      ;;
+  esac
+}
+
+# Executables in /usr/local/bin that Homebrew (or a cask app) did not put there.
+unbrewed_executables() {
+  local file
+  for file in /usr/local/bin/*; do
+    [ -e "$file" ] || [ -L "$file" ] || continue
+    if [ -L "$file" ]; then
+      case "$(readlink "$file")" in *Cellar/* | *Caskroom/* | *Homebrew/* | /Applications/*) continue ;; esac
+    fi
+    echo "$file"
+  done
+}
+
+regex_escape() { printf '%s' "$1" | sed 's/[][\.*^$+?(){}|/]/\\&/g'; }
+
+mise_files() {
+  local dir
+  for dir in $(dot_layer_dirs); do
+    if [ -f "$dir/mise.toml" ]; then echo "$dir/mise.toml"; fi
+  done
+  if [ -f "$MISE_LOCAL" ]; then echo "$MISE_LOCAL"; fi
+}
+
+# True if any mise config of this machine sets the tool.
+mise_has_tool() {
+  local file pattern
+  pattern="^[[:space:]]*\"?$(regex_escape "$1")\"?[[:space:]]*="
+  for file in $(mise_files); do
+    if grep -Eq "$pattern" "$file"; then return 0; fi
+  done
+  return 1
+}
+
+# Append a line to the [tools] of the machine-local mise config.
+mise_local_append() {
+  mkdir -p "$(dirname "$MISE_LOCAL")"
+  if [ ! -f "$MISE_LOCAL" ]; then
+    printf '%s\n[tools]\n' "# Tools for this machine only, kept by \`dot adopt\`. Not in any repo." >"$MISE_LOCAL"
+  fi
+  echo "$1" >>"$MISE_LOCAL"
+}
+
+adopt_version_managers() {
+  local found tool mtool version
+  found="$(version_managers)"
+  [ -n "$found" ] || return 0
+  info "Version managers"
+  for tool in $found; do
+    warn "Found ~/.$tool. mise replaces it, its shell setup is not carried over."
+    while read -r mtool version; do
+      [ -n "$mtool" ] || continue
+      if mise_has_tool "$mtool"; then
+        ok "$mtool: mise already pins a version ($tool default was $version)"
+      elif ask "Keep $mtool $version from $tool, in ${MISE_LOCAL/#$HOME/~}?"; then
+        mise_local_append "$mtool = \"$version\""
+        ok "mise: $mtool $version"
+      fi
+    done <<<"$(vm_versions "$tool")"
+    if interactive && ask "Delete ~/.$tool and everything installed with it?" n; then
+      rm -rf "${HOME:?}/.$tool"
+      ok "Deleted ~/.$tool"
+    fi
+  done
+}
+
+# Go through the files this run moved aside and offer to keep what they had.
+adopt_migrate() {
+  local manifest="$BACKUP_DIR/manifest" dest backup
+  [ -f "$manifest" ] || return 0
+  info "Previous configuration"
+  while IFS=$'\t' read -r dest backup <&3; do
+    if [ ! -f "$backup" ]; then
+      ok "Old ${dest/#$HOME/~} is in ${backup/#$HOME/~}"
+      continue
+    fi
+    case "$dest" in
+      "$HOME/.zshrc") migrate_zshrc "$backup" ;;
+      "$HOME/.gitconfig") migrate_gitconfig "$backup" ;;
+      "$HOME/.config/mise/config.toml") migrate_mise "$backup" ;;
+      *) ok "Old ${dest/#$HOME/~} is in ${backup/#$HOME/~}" ;;
+    esac
+  done 3<"$manifest"
+  ok "'dot restore $(basename "$BACKUP_DIR")' puts every old file back"
+}
+
+# A paragraph (lines between blank lines) of the old ~/.zshrc is offered for
+# ~/.zshrc.local unless every command in it already appears in the new .zshrc,
+# a layer's shell files, ~/.zshrc.local or the Oh My Zsh template. Whole
+# paragraphs are kept so if/fi blocks stay intact. Setup of version managers
+# that mise replaces is dropped.
+migrate_zshrc() {
+  local old="$1" known kept skipped dir choice=y
+  known="$(mktemp)" kept="$(mktemp)" skipped="$(mktemp)"
+  {
+    echo "# known lines"
+    cat "$(readlink "$HOME/.zshrc" || echo "$DOTFILES/.zshrc")"
+    for dir in $(dot_layer_dirs); do
+      cat "$dir/.exports" "$dir/.path" "$dir/.aliases" "$dir/.functions" 2>/dev/null || true
+    done
+    cat "$ZSHRC_LOCAL" "$HOME/.oh-my-zsh/templates/zshrc.zsh-template" 2>/dev/null || true
+  } >"$known"
+  VM_RE="$VM_SHELL_PATTERN" awk -v skipped="$skipped" '
+    function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
+    function flush() {
+      if (n > 0 && keep) {
+        if (para ~ ENVIRON["VM_RE"]) print para > skipped
+        else { if (out++) print ""; print para }
+      }
+      para = ""; n = 0; keep = 0
+    }
+    NR == FNR { t = trim($0); if (t != "" && t !~ /^#/) known[t] = 1; next }
+    {
+      t = trim($0)
+      if (t == "") { flush(); next }
+      para = n++ ? para "\n" $0 : $0
+      if (t !~ /^#/ && !(t in known)) keep = 1
+    }
+    END { flush() }
+  ' "$known" "$old" >"$kept"
+
+  if [ -s "$skipped" ]; then
+    warn "Not carried over from the old ~/.zshrc, mise replaces these:"
+    sed 's/^/      /' "$skipped" >&2
+  fi
+  if [ ! -s "$kept" ]; then
+    ok "The new ~/.zshrc covers everything in the old one"
+    rm -f "$known" "$kept" "$skipped"
+    return 0
+  fi
+  echo "    In the old ~/.zshrc but not in the new one:"
+  sed 's/^/      /' "$kept"
+  if interactive; then
+    choice="$(prompt "Append this to ~/.zshrc.local? (y)es, (e)dit first, (n)o" y)"
+  fi
+  case "$choice" in
+    e*) "${EDITOR:-vi}" "$kept" </dev/tty >/dev/tty ;;
+    n*) choice=no ;;
+  esac
+  if [ "$choice" = no ]; then
+    ok "Skipped"
+  elif ! zsh -n "$kept" 2>/dev/null; then
+    warn "Not appended, it is not valid zsh on its own. Copy what you need from $old"
+  else
+    {
+      printf '\n# From the previous ~/.zshrc, kept by `dot adopt` on %s.\n' "$(date +%Y-%m-%d)"
+      cat "$kept"
+    } >>"$ZSHRC_LOCAL"
+    ok "Appended to ~/.zshrc.local"
+  fi
+  rm -f "$known" "$kept" "$skipped"
+}
+
+# Settings of the old ~/.gitconfig that the new one (with its includes) does not
+# set at all are offered for local.gitconfig, which ~/.gitconfig includes first
+# so the dotfiles and layer identities still win.
+migrate_gitconfig() {
+  local old="$1" list entry key value
+  list="$(mktemp)"
+  while IFS= read -r -d '' entry; do
+    key="${entry%%$'\n'*}"
+    if [ "$key" = "$entry" ]; then value=true; else value="${entry#*$'\n'}"; fi
+    if [ -z "$(git config --global --includes --get-all "$key" 2>/dev/null || true)" ]; then
+      printf '%s\0%s\0' "$key" "$value" >>"$list"
+    fi
+  done < <(git config -f "$old" --list -z 2>/dev/null || true)
+
+  if [ ! -s "$list" ]; then
+    ok "The new ~/.gitconfig sets everything the old one did"
+    rm -f "$list"
+    return 0
+  fi
+  echo "    Set in the old ~/.gitconfig but not in the new one:"
+  while IFS= read -r -d '' key && IFS= read -r -d '' value; do
+    printf '      %s = %s\n' "$key" "$value"
+  done <"$list"
+  if ask "Keep them in ${GITCONFIG_LOCAL/#$HOME/~}?"; then
+    mkdir -p "$(dirname "$GITCONFIG_LOCAL")"
+    while IFS= read -r -d '' key && IFS= read -r -d '' value; do
+      git config -f "$GITCONFIG_LOCAL" --add "$key" "$value"
+    done <"$list"
+    ok "Saved"
+  fi
+  rm -f "$list"
+}
+
+# Tools of the old global mise config that no mise config here sets.
+migrate_mise() {
+  local old="$1" line key lines=""
+  while IFS= read -r line; do
+    key="$(printf '%s' "$line" | sed -E 's/^[[:space:]]*"?([^"=]*[^"=[:space:]])"?[[:space:]]*=.*/\1/')"
+    if ! mise_has_tool "$key"; then lines="$lines$line"$'\n'; fi
+  done < <(awk '/^[[:space:]]*\[/ { s = ($0 ~ /^[[:space:]]*\[tools\]/); next }
+    s && /=/ && $0 !~ /^[[:space:]]*#/' "$old")
+
+  if [ -z "$lines" ]; then
+    ok "The new mise config has every tool of the old one"
+    return 0
+  fi
+  echo "    Tools in the old mise config but not in the new one:"
+  printf '%s' "$lines" | sed 's/^/      /'
+  if ask "Keep them in ${MISE_LOCAL/#$HOME/~}?"; then
+    while IFS= read -r line; do
+      if [ -n "$line" ]; then mise_local_append "$line"; fi
+    done <<<"$lines"
+    ok "Saved"
+  fi
+}
+
+# Put back the files a run moved to ~/.dotfiles-backup/<run>/.
+cmd_restore() {
+  local root="$HOME/.dotfiles-backup" run="${1:-}" dir manifest dest backup kept=0
+  if [ -z "$run" ]; then
+    info "Backups in ${root/#$HOME/~}"
+    for dir in "$root"/*/; do
+      [ -d "$dir" ] || continue
+      dir="${dir%/}"
+      if [ -f "$dir/manifest" ]; then
+        echo "    $(basename "$dir")  $(wc -l <"$dir/manifest" | tr -d ' ') file(s)"
+      else
+        echo "    $(basename "$dir")  ${dim}(restored, or from before manifests: restore by hand)${reset}"
+      fi
+    done
+    echo "Restore one with: dot restore <backup>|latest"
+    return 0
+  fi
+  if [ "$run" = latest ]; then
+    run=""
+    for dir in "$root"/*/; do
+      if [ -f "${dir}manifest" ]; then run="$(basename "$dir")"; fi
+    done
+    [ -n "$run" ] || die "No backup to restore"
+  fi
+  manifest="$root/$run/manifest"
+  [ -f "$manifest" ] || die "No backup '$run' to restore. See 'dot restore'."
+
+  info "Restore $run"
+  cut -f1 "$manifest" | sed "s|^$HOME|~|; s/^/    /"
+  ask "Put these back in place of the links to the dotfiles?" || return 0
+  while IFS=$'\t' read -r dest backup <&3; do
+    if [ ! -e "$backup" ] && [ ! -L "$backup" ]; then
+      warn "${backup/#$HOME/~} is gone"
+      kept=1
+      continue
+    fi
+    if [ -L "$dest" ]; then
+      case "$(readlink "$dest")" in
+        "$DOTFILES"/*) rm "$dest" ;;
+        *) warn "${dest/#$HOME/~} changed since, skipped"; kept=1; continue ;;
+      esac
+    elif [ -e "$dest" ]; then
+      warn "${dest/#$HOME/~} changed since, skipped"
+      kept=1
+      continue
+    fi
+    mkdir -p "$(dirname "$dest")"
+    mv "$backup" "$dest"
+    ok "${dest/#$HOME/~}"
+  done 3<"$manifest"
+  if [ "$kept" = 0 ]; then mv "$manifest" "$manifest.restored"; fi
+  ok "~/.zshrc.local, local.gitconfig and mise conf.d/local.toml are left as they are"
+  ok "'dot link' switches back to the dotfiles"
 }
 
 cmd_layers() {
@@ -605,6 +1033,81 @@ brew_check() {
   fi
 }
 
+# Packages of the active Brewfiles that only run on one architecture, have no
+# prebuilt version for one, or are deprecated. Homebrew stopped building Intel
+# bottles (Intel is Tier 3), so on Intel more formulae compile from source over
+# time. Uses Homebrew's public API, which lists every platform's builds; local
+# `brew info` only shows this Mac's.
+brew_arch_check() {
+  local formulae casks name report
+  info "Architectures (Apple Silicon and Intel)"
+  load_brew || die "Homebrew is not installed"
+  has python3 || die "python3 is missing (xcode-select --install)"
+  # shellcheck disable=SC2046
+  formulae="$(brew_entries $(brewfiles) | awk '$1 == "brew" { print $3 }')"
+  # shellcheck disable=SC2046
+  casks="$(brew_entries $(brewfiles) | awk '$1 == "cask" { print $3 }')"
+  report="$({
+    for name in $formulae; do brew_api_json formula "$name"; done
+    for name in $casks; do brew_api_json cask "$name"; done
+  } | python3 -I -c "$(
+    cat <<'EOF'
+import json, sys
+
+fail, no_intel, unchecked = [], [], []
+for line in sys.stdin:
+    doc = json.loads(line)
+    kind, name, data = doc["kind"], doc["name"], doc["data"]
+    label = "brew" if kind == "formula" else "cask"
+    if data is None:
+        unchecked.append(name)
+        continue
+    if data.get("disabled") or data.get("deprecated"):
+        fail.append(f"{label} {name}: deprecated or disabled in Homebrew")
+    if kind == "formula":
+        files = ((data.get("bottle") or {}).get("stable") or {}).get("files") or {}
+        tags = [t for t in files if "linux" not in t]
+        if tags and "all" not in tags:
+            if not any(not t.startswith("arm64_") for t in tags):
+                no_intel.append(name)
+            if not any(t.startswith("arm64_") for t in tags):
+                fail.append(f"brew {name}: no Apple Silicon build, compiles from source there")
+    else:
+        arch = (data.get("depends_on") or {}).get("arch") or []
+        kinds = sorted({a.get("type") for a in arch if isinstance(a, dict) and a.get("type")})
+        if kinds:
+            fail.append(f"cask {name}: only runs on {', '.join(kinds)}")
+if no_intel:
+    print("WARN No Intel build, compiles from source on Intel Macs: " + ", ".join(no_intel))
+if unchecked:
+    print("WARN Not in Homebrew's public catalog (from a tap?), not checked: " + ", ".join(unchecked))
+for f in fail:
+    print("FAIL " + f)
+EOF
+  )")"
+  if [ -n "$report" ]; then
+    echo "$report" | sed -n 's/^WARN /    /p'
+  fi
+  case "$report" in
+    *FAIL*)
+      echo "$report" | sed -n 's/^FAIL /  ✗ /p'
+      die "Some packages do not run on both Apple Silicon and Intel"
+      ;;
+  esac
+  ok "Every package runs on Apple Silicon and Intel"
+}
+
+# One line of JSON per package: {"kind", "name", "data"}, data being Homebrew's
+# API record or null when the package is not in homebrew/core or homebrew/cask.
+brew_api_json() {
+  local data=""
+  case "$2" in
+    */*) ;;
+    *) data="$(curl -fsSL --max-time 20 "https://formulae.brew.sh/api/$1/$2.json" 2>/dev/null | tr -d '\n' || true)" ;;
+  esac
+  printf '{"kind": "%s", "name": "%s", "data": %s}\n' "$1" "$2" "${data:-null}"
+}
+
 # Print a numbered menu of the layers a package can be filed under.
 brew_targets() {
   local dir i=1
@@ -736,7 +1239,9 @@ cmd_brew() {
   local sub="${1:-check}"
   [ $# -gt 0 ] && shift
   case "$sub" in
-    check | status) brew_check ;;
+    check | status)
+      if [ "${1:-}" = --arch ]; then brew_arch_check; else brew_check; fi
+      ;;
     install | i) brew_install ;;
     sync) brew_sync ;;
     add) brew_add "$@" ;;
@@ -758,7 +1263,7 @@ cmd_brew() {
 #
 
 cmd_doctor() {
-  local repo dir url src dest line problems=0
+  local repo dir url tool line problems=0
 
   fail() {
     warn "$*"
@@ -771,6 +1276,28 @@ cmd_doctor() {
     if has "$tool"; then ok "$tool"; else fail "$tool is not installed"; fi
   done
   if [ -d "$HOME/.oh-my-zsh" ]; then ok "oh-my-zsh"; else fail "oh-my-zsh is not installed"; fi
+
+  info "Machine"
+  if is_apple_silicon; then
+    ok "Apple Silicon, Homebrew in /opt/homebrew"
+    if [ -x /usr/local/bin/brew ]; then
+      warn "An Intel Homebrew is still in /usr/local, unused. Remove it with Homebrew's uninstall script and --path=/usr/local"
+    fi
+  else
+    ok "Intel, Homebrew in /usr/local"
+    warn "Homebrew is phasing out Intel Macs. 'dot brew check --arch' lists packages without Intel builds."
+  fi
+  for tool in $(version_managers); do
+    warn "~/.$tool is no longer used, mise replaces it. Delete it when ready."
+  done
+  for line in "$ZSHRC_LOCAL" "$HOME/.zprofile" "$HOME/.zshenv"; do
+    if [ -f "$line" ] && grep -Eq "$VM_SHELL_PATTERN" "$line"; then
+      fail "${line/#$HOME/~} still loads a version manager that mise replaces"
+    fi
+  done
+  if ! git -C "$DOTFILES" diff --quiet -- .zshrc; then
+    fail ".zshrc has uncommitted changes, an installer may have appended to it. Move them to a layer or ~/.zshrc.local"
+  fi
 
   info "Repositories"
   while read -r dir url; do
@@ -787,18 +1314,14 @@ cmd_doctor() {
   if github_ssh_ok; then ok "GitHub SSH"; else fail "GitHub SSH authentication failed"; fi
 
   info "Symlinks"
-  for dir in $(dot_layer_dirs); do
-    [ -f "$dir/links" ] || continue
-    while read -r src dest; do
-      case "$src" in '' | \#*) continue ;; esac
-      case "$dest" in "~/"*) dest="$HOME/${dest#\~/}" ;; esac
-      if [ "$(readlink "$dest" 2>/dev/null || true)" = "$dir/$src" ]; then
-        ok "${dest/#$HOME/~}"
-      else
-        fail "${dest/#$HOME/~} is not linked (dot link)"
-      fi
-    done <"$dir/links"
-  done
+  doctor_link() {
+    if [ "$(readlink "$2" 2>/dev/null || true)" = "$1" ]; then
+      ok "${2/#$HOME/~}"
+    else
+      fail "${2/#$HOME/~} is not linked (dot link)"
+    fi
+  }
+  each_link doctor_link
 
   info "Secrets"
   line="$DOTFILES_CONFIG/secrets.env"
@@ -821,7 +1344,9 @@ cmd_help() {
 ${bold}dot${reset}: manage dotfiles at ${DOTFILES/#$HOME/~}
 
 ${bold}Setup${reset}
-  install            Set up this machine from scratch (safe to re-run)
+  install            Set up this machine, new or already configured (safe to re-run)
+  adopt [--dry-run]  Show what install would replace; without --dry-run, install
+  restore [backup]   List backups of replaced files, or put one back (or 'latest')
   private            Clone the private personal/work layers (via 1Password SSH)
   link               Symlink dotfiles of the active layers into \$HOME
   hooks              Install the secret scanning git hook in every repo
@@ -839,6 +1364,7 @@ ${bold}Sync${reset}
 
 ${bold}Homebrew${reset} (across the Brewfiles of the active layers)
   brew [check]                 Missing packages and installed ones not in a Brewfile
+  brew check --arch            Packages without Apple Silicon or Intel builds
   brew install                 Install everything from the Brewfiles
   brew add [--cask] [--to L] X Install X and add it to layer L's Brewfile
   brew rm X                    Remove X from the Brewfiles and uninstall it
@@ -852,6 +1378,11 @@ EOF
 }
 
 main() {
+  # A Terminal opened with Rosetta would install and run an Intel Homebrew.
+  if [ -z "${DOT_ARCH:-}" ] && under_rosetta; then
+    warn "Running under Rosetta, restarting as a native Apple Silicon process"
+    exec arch -arm64 /bin/bash "$DOTFILES/bin/dot" "$@"
+  fi
   while [ $# -gt 0 ]; do
     case "$1" in
       -y | --yes) ASSUME_YES=1 ;;
@@ -863,6 +1394,8 @@ main() {
   [ $# -gt 0 ] && shift
   case "$cmd" in
     install) cmd_install "$@" ;;
+    adopt) cmd_adopt "$@" ;;
+    restore) cmd_restore "$@" ;;
     private) cmd_private "$@" ;;
     link) cmd_link "$@" ;;
     hooks) cmd_hooks "$@" ;;

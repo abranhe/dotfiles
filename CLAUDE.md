@@ -25,6 +25,7 @@ in [readme.md](readme.md); this file is for making changes.
 | `Brewfile` | Packages for every machine |
 | `completions/_dot` | zsh completion, update it when commands change |
 | `.github/workflows/secrets.yml` | gitleaks on every push |
+| `.github/workflows/install.yml` | `install.sh` on Apple Silicon and Intel runners, over a seeded existing config |
 
 ## Layers
 
@@ -47,8 +48,23 @@ Adding a new layer file type means updating all of these:
 - the layer table in `readme.md`
 
 Machine-local state lives outside the repo:
-- `~/.config/dotfiles/`: `layers`, the generated `gitconfig`, `secrets.env`
+- `~/.config/dotfiles/`: `layers`, the generated `gitconfig`, `secrets.env`,
+  `local.gitconfig` (kept from a previous `~/.gitconfig`)
 - `~/.zshrc.local`
+- `~/.config/mise/conf.d/local.toml` (tools kept from a previous config)
+- `~/.dotfiles-backup/<run>/`: files `link_file` replaced, plus a `manifest`
+  that `dot restore` reads. Anything that moves a user file aside must go
+  through `link_file` so it lands in the manifest.
+
+## Apple Silicon and Intel
+
+- Pick Homebrew with `brew_prefix`/`load_brew`, never by looking for whichever
+  brew exists: an Apple Silicon Mac migrated from Intel can still have an
+  unused `/usr/local/bin/brew`.
+- Detect the hardware with `is_apple_silicon` (`sysctl hw.optional.arm64`), not
+  `uname -m`, which says `x86_64` under Rosetta. `DOT_ARCH=arm64|x86_64` fakes
+  it for tests.
+- Paths under the Homebrew prefix use `$HOMEBREW_PREFIX`.
 
 ## Where things go
 
@@ -89,7 +105,12 @@ bin/dot help
 bin/dot doctor
 zsh -i -c exit                 # shell starts without errors
 bin/dot brew check             # after touching any Brewfile
+bin/dot brew check --arch      # after adding a package
 ```
+
+- Test `dot adopt`, `dot link` and `dot restore` with a seeded fake home:
+  `HOME=<temp dir> bin/dot adopt --dry-run`, then `-y link`, then
+  `-y restore latest`, and compare the files with the seeds.
 
 - Test hooks in a throwaway repo in a temp dir with
   `git config core.hooksPath <this repo>/hooks`.

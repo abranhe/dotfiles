@@ -90,4 +90,4 @@ export PATH="$HOME/.local/bin:$PATH"
 
 # Machine specific settings that should not be committed. Installers that
 # append to ~/.zshrc edit this repo through the symlink, point them here.
-[[ -r "$HOME/.zshrc.local" ]] && source "$HOME/.zshrc.local"
+if [[ -r "$HOME/.zshrc.local" ]]; then source "$HOME/.zshrc.local"; fi

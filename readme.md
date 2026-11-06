@@ -19,6 +19,33 @@ Or download the zip, extract it and run `./install.sh`. Either way it:
 
 Everything is safe to re-run. `dot doctor` tells you what is missing.
 
+Works on Apple Silicon and Intel Macs (Homebrew in `/opt/homebrew` or
+`/usr/local`). Homebrew no longer builds Intel bottles for new versions, so on
+Intel some formulae compile from source; `dot brew check --arch` lists them.
+
+### On a Mac that is already set up
+
+The same command works on a machine with existing configuration. The new
+configuration wins, and nothing is lost:
+
+```sh
+dot adopt --dry-run   # what would be replaced, changes nothing
+dot adopt             # same as `dot install`, which also shows that report first
+```
+
+- Every file in the way is moved to `~/.dotfiles-backup/<date>/` before it is
+  replaced with a link.
+- What the old files had that these dotfiles lack is offered for machine-local
+  files, never a repo: `~/.zshrc` lines go to `~/.zshrc.local`, `~/.gitconfig`
+  settings to `~/.config/dotfiles/local.gitconfig`, and mise tools to
+  `~/.config/mise/conf.d/local.toml`.
+- nvm, volta, asdf, pyenv, rbenv and nodenv are replaced by mise. Their default
+  versions can be kept in mise. Their folders are deleted only if you say so.
+- Installed packages that are in no Brewfile can be filed under a layer
+  (`dot brew sync`).
+- `dot restore` lists the backups, and `dot restore latest` puts the old files
+  back.
+
 ## Layers
 
 Configuration is split in layers, loaded in this order:
@@ -74,6 +101,9 @@ Nothing secret is committed, in any repo:
   this repo and every private layer, and refuses files like `.env` or private
   keys. `dot hooks` installs it.
 - GitHub Actions run gitleaks on every push to this repo.
+
+GitHub Actions also run the installer on Apple Silicon and Intel runners, on top
+of an existing configuration, and check that `dot restore` undoes it.
 
 ## Daily use
 

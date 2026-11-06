@@ -1,3 +1,8 @@
+# Machine-local settings, e.g. kept from a previous ~/.gitconfig by `dot adopt`.
+# First, so everything below wins. Git skips it when the file does not exist.
+[include]
+	path = ~/.config/dotfiles/local.gitconfig
+
 [gpg]
 format = ssh
 

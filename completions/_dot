@@ -9,7 +9,9 @@ _dot_layers() {
 _dot() {
   local -a commands brew_commands
   commands=(
-    'install:set up this machine from scratch'
+    'install:set up this machine, new or already configured'
+    'adopt:show what install would replace, then install'
+    'restore:list backups or put replaced files back'
     'private:clone the private personal/work layers'
     'link:symlink dotfiles into $HOME'
     'hooks:install the secret scanning git hook'
@@ -43,9 +45,19 @@ _dot() {
   fi
 
   case "$words[2]" in
+    adopt) (( CURRENT == 3 )) && _values 'option' --dry-run ;;
+    restore)
+      if (( CURRENT == 3 )); then
+        local -a backups
+        backups=(latest ${(f)"$(print -l ~/.dotfiles-backup/*/manifest(N:h:t))"})
+        _describe 'backup' backups
+      fi
+      ;;
     brew)
       if (( CURRENT == 3 )); then
         _describe 'brew command' brew_commands
+      elif [[ "$words[3]" == check ]]; then
+        _values 'option' --arch
       elif [[ "$words[3]" == edit || "$words[CURRENT-1]" == --to ]]; then
         _dot_layers
       fi

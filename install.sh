@@ -19,20 +19,30 @@ main() {
 
   local dotfiles="${DOTFILES:-$HOME/Developer/github/abranhe/dotfiles}"
   local repo="${DOTFILES_REPO:-https://github.com/abranhe/dotfiles.git}"
-  local brew
+  local prefix=/usr/local
 
   if [ "$(uname -s)" != Darwin ]; then
     echo "These dotfiles only support macOS." >&2
     exit 1
   fi
 
+  # Homebrew lives in /opt/homebrew on Apple Silicon and /usr/local on Intel.
+  # hw.optional.arm64 tells the hardware even under Rosetta, uname -m does not.
+  if [ "$(sysctl -n hw.optional.arm64 2>/dev/null || true)" = 1 ]; then
+    prefix=/opt/homebrew
+    if [ "$(sysctl -n sysctl.proc_translated 2>/dev/null || true)" = 1 ]; then
+      echo "This Terminal runs under Rosetta and would install an Intel Homebrew." >&2
+      echo "Untick 'Open using Rosetta' in its Get Info window, or run:" >&2
+      echo '  arch -arm64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/abranhe/dotfiles/master/install.sh)"' >&2
+      exit 1
+    fi
+  fi
+
   load_brew() {
-    for brew in /opt/homebrew/bin/brew /usr/local/bin/brew; do
-      if [ -x "$brew" ]; then
-        eval "$("$brew" shellenv)"
-        return 0
-      fi
-    done
+    if [ -x "$prefix/bin/brew" ]; then
+      eval "$("$prefix/bin/brew" shellenv)"
+      return 0
+    fi
     return 1
   }
 
@@ -69,7 +79,11 @@ main() {
     git clone --quiet "$repo" "$dotfiles"
   fi
 
-  exec "$dotfiles/bin/dot" "$@" install </dev/tty
+  # Prompts need the terminal, which stdin is not under `curl | bash`. CI has none.
+  if (: </dev/tty) 2>/dev/null; then
+    exec "$dotfiles/bin/dot" "$@" install </dev/tty
+  fi
+  exec "$dotfiles/bin/dot" "$@" install
 }
 
 main "$@"

@@ -1,0 +1,79 @@
+name: install
+
+# Runs install.sh on Apple Silicon and Intel runners, on top of an "already set
+# up" home folder, then checks what `dot install` kept and that `dot restore`
+# undoes it. Only the public layer: CI cannot reach the private repos.
+#
+# The weekly run catches packages that stop shipping builds for one
+# architecture (Homebrew is phasing out Intel).
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - install.sh
+      - bin/**
+      - lib/**
+      - links
+      - Brewfile
+      - mise.toml
+      - .zshrc
+      - .gitconfig
+      - .github/workflows/install.yml
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * 1"
+
+jobs:
+  install:
+    strategy:
+      fail-fast: false
+      matrix:
+        # macos-15-intel is GitHub's last Intel image; check the runner-images
+        # repo for its retirement date and replace it when it goes away.
+        os: [macos-latest, macos-15-intel]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use a throwaway home folder
+        run: |
+          mkdir -p "$RUNNER_TEMP/home"
+          echo "HOME=$RUNNER_TEMP/home" >>"$GITHUB_ENV"
+          # Apps are slow to install and not what this tests.
+          echo "HOMEBREW_BUNDLE_CASK_SKIP=$(sed -n "s/^cask '\(.*\)'.*/\1/p" Brewfile | tr '\n' ' ')" >>"$GITHUB_ENV"
+
+      - name: Seed an already set up machine
+        run: |
+          cat >"$HOME/.zshrc" <<'EOF'
+          export NVM_DIR="$HOME/.nvm"
+          [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
+          export SEEDED_FROM_OLD_ZSHRC=1
+          EOF
+          git config -f "$HOME/.gitconfig" seeded.key value
+          cp "$HOME/.zshrc" "$RUNNER_TEMP/zshrc.seed"
+
+      - name: Install
+        env:
+          DOTFILES: ${{ github.workspace }}
+        run: bash install.sh --yes
+
+      - name: Check what was kept
+        run: |
+          test "$(readlink "$HOME/.zshrc")" = "$GITHUB_WORKSPACE/.zshrc"
+          grep -q SEEDED_FROM_OLD_ZSHRC "$HOME/.zshrc.local"
+          if grep -q NVM_DIR "$HOME/.zshrc.local"; then exit 1; fi
+          test "$(git config --global --includes seeded.key)" = value
+          zsh -i -c exit
+
+      - name: Restore
+        run: |
+          bin/dot -y restore latest
+          test ! -L "$HOME/.zshrc"
+          cmp "$HOME/.zshrc" "$RUNNER_TEMP/zshrc.seed"
+
+      - name: Architectures
+        run: bin/dot brew check --arch
